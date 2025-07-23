@@ -140,7 +140,7 @@ export default function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { phase: "1.0", title: "Project Setup", status: "pending", tasks: 6 },
+              { phase: "1.0", title: "Project Setup", status: "DONE", tasks: 0 },
               { phase: "2.0", title: "Authentication", status: "pending", tasks: 6 },
               { phase: "3.0", title: "Database Setup", status: "pending", tasks: 6 },
               { phase: "4.0", title: "Core Features", status: "pending", tasks: 6 },
