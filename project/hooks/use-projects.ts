@@ -1,69 +1,85 @@
-// TODO: Task 4.1 - Implement project CRUD operations
-// TODO: Task 4.2 - Create project listing and dashboard interface
+// hooks/use-projects.ts
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { projects } from "@/lib/db/schema"
 
-/*
-TODO: Implementation Notes for Interns:
-
-Custom hook for project data management:
-- Fetch projects list
-- Create new project
-- Update project
-- Delete project
-- Search/filter projects
-- Pagination
-
-Features:
-- React Query/SWR for caching
-- Optimistic updates
-- Error handling
-- Loading states
-- Infinite scrolling (optional)
-
-Example structure:
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+type Project = typeof projects.$inferSelect
+type NewProject = typeof projects.$inferInsert
 
 export function useProjects() {
-  const queryClient = useQueryClient()
-  
-  const {
-    data: projects,
-    isLoading,
-    error
-  } = useQuery({
-    queryKey: ['projects'],
-    queryFn: () => queries.projects.getAll()
+  return useQuery<Project[]>({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const res = await fetch("/api/projects")
+      if (!res.ok) throw new Error("Failed to fetch projects")
+      return res.json()
+    },
   })
-  
-  const createProject = useMutation({
-    mutationFn: queries.projects.create,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
-    }
-  })
-  
-  return {
-    projects,
-    isLoading,
-    error,
-    createProject: createProject.mutate,
-    isCreating: createProject.isPending
-  }
 }
 
-Dependencies to install:
-- @tanstack/react-query (recommended)
-- OR swr (alternative)
-*/
+export function useCreateProject() {
+  const queryClient = useQueryClient()
 
-// Placeholder to prevent import errors
-export function useProjects() {
-  console.log("TODO: Implement useProjects hook")
-  return {
-    projects: [],
-    isLoading: false,
-    error: null,
-    createProject: (data: any) => console.log("TODO: Create project", data),
-    updateProject: (id: string, data: any) => console.log(`TODO: Update project ${id}`, data),
-    deleteProject: (id: string) => console.log(`TODO: Delete project ${id}`),
-  }
+  return useMutation({
+    mutationFn: async (data: NewProject) => {
+      console.log("Sending project data:", data)
+      const res = await fetch("/api/projects/create", {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error("Server response:", errorText)
+        throw new Error("Failed to create project");
+      }
+
+      return res.json();
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] })
+    },
+  })
+}
+
+export const useDeleteProject = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to delete project");
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+};
+
+export function useUpdateProject() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<NewProject> }) => {
+      const res = await fetch(`/api/projects/update/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error("Update error:", errorText)
+        throw new Error("Failed to update project")
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] })
+    },
+  })
 }

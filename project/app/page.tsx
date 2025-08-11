@@ -1,9 +1,14 @@
+'use client'
 import Link from "next/link"
 import { ArrowRight, CheckCircle, Users, Kanban } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useUser } from '@clerk/nextjs';
+import { SignOutButton } from '@clerk/nextjs';
 
 export default function HomePage() {
+  const { user } = useUser();
   return (
+    
     <div className="min-h-screen bg-gradient-to-br from-platinum-900 to-platinum-800 dark:from-outer_space-500 dark:to-payne's_gray-500">
       {/* Header */}
       <header className="border-b border-french_gray-300 dark:border-payne's_gray-400 bg-white/80 dark:bg-outer_space-500/80 backdrop-blur-sm">
@@ -24,7 +29,7 @@ export default function HomePage() {
               >
                 Projects
               </Link>
-              <Link href="/sign-in" className="text-outer_space-500 dark:text-platinum-500 hover:text-blue_munsell-500">
+              {/* <Link href="/sign-in" className="text-outer_space-500 dark:text-platinum-500 hover:text-blue_munsell-500">
                 Sign In
               </Link>
               <Link
@@ -32,7 +37,34 @@ export default function HomePage() {
                 className="px-4 py-2 bg-blue_munsell-500 text-white rounded-lg hover:bg-blue_munsell-600"
               >
                 Get Started
-              </Link>
+              </Link> */}
+              {user ? (
+                <div className="flex items-center gap-4">
+                  <span className="text-base font-medium text-outer_space-500 dark:text-platinum-500">
+                    Welcome, {user?.username || "User"}
+                  </span>
+                  <SignOutButton>
+                    <button className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+                      Sign Out
+                    </button>
+                  </SignOutButton>
+                </div>
+              ) : (
+                <>
+                  <Link
+                    href="/sign-in"
+                    className="text-outer_space-500 dark:text-platinum-500 hover:text-blue_munsell-500"
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    href="/sign-up"
+                    className="px-4 py-2 bg-blue_munsell-500 text-white rounded-lg hover:bg-blue_munsell-600"
+                  >
+                    Get Started
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

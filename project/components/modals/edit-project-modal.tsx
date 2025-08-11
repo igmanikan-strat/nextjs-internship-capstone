@@ -1,4 +1,4 @@
-//components/modals/create-project-modal.tsx
+//components/modals/edit-project-modal.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -6,60 +6,75 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createProjectSchema } from '@/lib/validations'
-import { useCreateProject } from '@/hooks/use-projects'
+import { useUpdateProject } from '@/hooks/use-projects'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { useAuth } from '@clerk/nextjs'
 
-type CreateProjectInput = z.infer<typeof createProjectSchema>
+type EditProjectInput = z.infer<typeof createProjectSchema>
 
-type CreateProjectModalProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+type EditProjectModalProps = {
+  onClose: () => void
+  project: {
+    id: string
+    name: string
+    description?: string | null
+    dueDate?: string | null
+  }
 }
 
-export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalProps) {
+export function EditProjectModal({ onClose, project }: EditProjectModalProps) {
   const [hasMounted, setHasMounted] = useState(false)
+  const queryClient = useQueryClient()
+  const { mutate: updateProject } = useUpdateProject()
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting }
+  } = useForm<EditProjectInput>({
+    resolver: zodResolver(createProjectSchema),
+    defaultValues: {
+      name: project?.name || '',
+      description: project?.description || '',
+      dueDate: project?.dueDate || '',
+    },
+  })
 
   useEffect(() => {
     setHasMounted(true)
   }, [])
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting }
-  } = useForm<CreateProjectInput>({
-    resolver: zodResolver(createProjectSchema),
-  })
-
-  const queryClient = useQueryClient()
-  const { mutate: createProject } = useCreateProject()
-  const { userId } = useAuth()
-
-  if (!hasMounted || !open) return null
-
-  const onSubmit = async (data: CreateProjectInput) => {
-    if (!userId) {
-      console.error('🚫 No user ID found')
-      return
+  useEffect(() => {
+    if (project) {
+      reset({
+        name: project.name,
+        description: project.description || '',
+        dueDate: project.dueDate || '',
+      })
     }
+  }, [project, reset])
 
-    createProject(
+  if (!hasMounted || !project) return null
+
+  const onSubmit = async (data: EditProjectInput) => {
+    updateProject(
       {
-        ...data,
-        ownerId: userId,
-        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+        id: project.id,
+        data: {
+          ...data,
+          dueDate: data.dueDate ? new Date(data.dueDate) : null,
+        }
       },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ['projects'] })
-          onOpenChange(false)
+          onClose()
         },
         onError: (error) => {
-          console.error('❌ Failed to create project', error)
+          console.error('❌ Failed to update project', error)
         },
       }
     )
@@ -69,7 +84,7 @@ export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalPro
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white dark:bg-outer_space-500 rounded-lg p-6 w-full max-w-md mx-4">
         <h3 className="text-lg font-semibold text-outer_space-500 dark:text-platinum-500 mb-4">
-          Create New Project
+          Edit Project
         </h3>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -92,15 +107,11 @@ export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalPro
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create'}
+              {isSubmitting ? 'Saving...' : 'Save'}
             </Button>
           </div>
         </form>

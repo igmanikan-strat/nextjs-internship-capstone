@@ -21,6 +21,13 @@ export interface Project {
   lists: List[]
 }
 
+export interface EditableProject {
+  id: string
+  name: string
+  description?: string
+  dueDate?: string // ISO date string, e.g., "2025-08-06"
+}
+
 export interface List {
   id: string
   name: string
@@ -53,6 +60,17 @@ export interface Comment {
   createdAt: Date
   updatedAt: Date
 }
+
+// types/index.ts
+
+export type NewTask = {
+  title: string
+  description?: string
+  projectId: string
+  listId: string
+  position: number
+}
+
 
 // Note for interns: These types should match your database schema
 // Update as needed when implementing the actual database schema

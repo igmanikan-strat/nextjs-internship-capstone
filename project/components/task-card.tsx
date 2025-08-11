@@ -37,12 +37,35 @@ Features to implement:
 - Responsive design
 */
 
-export function TaskCard() {
+// export function TaskCard() {
+//   return (
+//     <div className="bg-white dark:bg-outer_space-300 p-4 rounded-lg border border-french_gray-300 dark:border-payne's_gray-400">
+//       <p className="text-center text-payne's_gray-500 dark:text-french_gray-400 text-sm">
+//         TODO: Implement TaskCard component
+//       </p>
+//     </div>
+//   )
+// }
+
+// components/task-card.tsx
+import React from "react";
+
+type Task = {
+  id: string;
+  title: string;
+  description: string;
+  priority: string;
+  assignee: string;
+  listId: string;
+};
+
+export function TaskCard({ task }: { task: Task }) {
   return (
-    <div className="bg-white dark:bg-outer_space-300 p-4 rounded-lg border border-french_gray-300 dark:border-payne's_gray-400">
-      <p className="text-center text-payne's_gray-500 dark:text-french_gray-400 text-sm">
-        TODO: Implement TaskCard component
-      </p>
+    <div className="bg-white p-3 rounded shadow">
+      <h3 className="font-semibold">{task.title}</h3>
+      <p className="text-sm text-gray-500">{task.description}</p>
+      <p className="text-xs text-right italic text-gray-400">{task.assignee}</p>
     </div>
-  )
+  );
 }
+
