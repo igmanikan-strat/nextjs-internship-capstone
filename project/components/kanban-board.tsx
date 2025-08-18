@@ -1,153 +1,234 @@
-// "use client"
+// components/kanban-board.tsx
+'use client'
 
-// import { useState } from "react"
+import { useEffect, useState } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  DragStartEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
 
-// TODO: Task 5.1 - Design responsive Kanban board layout
-// TODO: Task 5.2 - Implement drag-and-drop functionality with dnd-kit
+import { useBoardStore } from '@/stores/board-store'
+import { useLists, useCreateList } from '@/hooks/use-lists'
+import { useTaskModal } from '@/stores/task-modal-store'
+import { useTasks } from '@/hooks/use-tasks'
+import { Task } from '@/types'
 
-/*
-TODO: Implementation Notes for Interns:
+import SortableList from './SortableList'
+import SortableTask from './SortableTask'
+import { CreateListModal } from './modals/create-list-modal'
+import { CreateTaskModal } from './modals/create-task-modal'
+import { TaskDetailModal } from './modals/task-detail-modal' // ✅ import modal
 
-This is the main Kanban board component that should:
-- Display columns (lists) horizontally
-- Allow drag and drop of tasks between columns
-- Support adding new tasks and columns
-- Handle real-time updates
-- Be responsive on mobile
+export default function KanbanBoard({ projectId }: { projectId: string }) {
+  const { lists, tasks, setLists, setTasks, addList } = useBoardStore()
+  const { data: listData } = useLists(projectId)
+  const { tasks: taskData } = useTasks(projectId)
+  const createListMutation = useCreateList(projectId)
+  const { open: openTaskModal } = useTaskModal()
 
-Key dependencies to install:
-- @dnd-kit/core
-- @dnd-kit/sortable
-- @dnd-kit/utilities
+  const sensors = useSensors(useSensor(PointerSensor))
+  const [activeTask, setActiveTask] = useState<Task | null>(null)
 
-Features to implement:
-- Drag and drop tasks between columns
-- Drag and drop to reorder tasks within columns
-- Add new task button in each column
-- Add new column functionality
-- Optimistic updates (Task 5.4)
-- Real-time persistence (Task 5.5)
-- Mobile responsive design
-- Loading states
-- Error handling
+  // Sync server → store
+  useEffect(() => { if (listData) setLists(listData) }, [listData, setLists])
+  useEffect(() => { if (taskData) setTasks(taskData) }, [taskData, setTasks])
 
-State management:
-- Use Zustand store for board state (Task 5.3)
-- Implement optimistic updates
-- Handle conflicts with server state
-*/
+  const handleAddList = () =>
+    createListMutation.mutate({ title: 'New List' }, { onSuccess: addList })
 
-// const initialColumns = [
-//   {
-//     id: "todo",
-//     title: "To Do",
-//     tasks: [
-//       {
-//         id: "1",
-//         title: "Design homepage mockup",
-//         description: "Create initial design concepts",
-//         priority: "high",
-//         assignee: "John Doe",
-//       },
-//       {
-//         id: "2",
-//         title: "Research competitors",
-//         description: "Analyze competitor websites",
-//         priority: "medium",
-//         assignee: "Jane Smith",
-//       },
-//       {
-//         id: "3",
-//         title: "Define user personas",
-//         description: "Create detailed user personas",
-//         priority: "low",
-//         assignee: "Mike Johnson",
-//       },
-//     ],
-//   },
-//   {
-//     id: "in-progress",
-//     title: "In Progress",
-//     tasks: [
-//       {
-//         id: "4",
-//         title: "Develop navigation component",
-//         description: "Build responsive navigation",
-//         priority: "high",
-//         assignee: "Sarah Wilson",
-//       },
-//       {
-//         id: "5",
-//         title: "Content strategy",
-//         description: "Plan content structure",
-//         priority: "medium",
-//         assignee: "Tom Brown",
-//       },
-//     ],
-//   },
-//   {
-//     id: "review",
-//     title: "Review",
-//     tasks: [
-//       {
-//         id: "6",
-//         title: "Logo design options",
-//         description: "Present logo variations",
-//         priority: "high",
-//         assignee: "Lisa Davis",
-//       },
-//     ],
-//   },
-//   {
-//     id: "done",
-//     title: "Done",
-//     tasks: [
-//       {
-//         id: "7",
-//         title: "Project kickoff meeting",
-//         description: "Initial team meeting completed",
-//         priority: "medium",
-//         assignee: "John Doe",
-//       },
-//       {
-//         id: "8",
-//         title: "Requirements gathering",
-//         description: "Collected all requirements",
-//         priority: "high",
-//         assignee: "Jane Smith",
-//       },
-//     ],
-//   },
-// ]
+  const handleAddTask = (listId: string) => openTaskModal(projectId, listId)
 
-// export function KanbanBoard({ projectId }: { projectId: string }) {
-//   const [columns, setColumns] = useState(initialColumns)
+  const handleDragStart = (event: DragStartEvent) => {
+    if (event.active.data.current?.type === 'task') {
+      const task = tasks.find(t => t.id === event.active.id)
+      if (task) setActiveTask(task)
+    }
+  }
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
 
-//   const getPriorityColor = (priority: string) => {
-//     switch (priority) {
-//       case "high":
-//         return "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
-//       case "medium":
-//         return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
-//       case "low":
-//         return "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-//       default:
-//         return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-//     }
-//   }
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task);
+    setIsTaskModalOpen(true);
+  };
 
-//   return (
-//     <div className="bg-white dark:bg-outer_space-500 rounded-lg border border-french_gray-300 dark:border-payne's_gray-400 p-6">
-//       <div className="text-center text-payne's_gray-500 dark:text-french_gray-400">
-//         <h3 className="text-lg font-semibold mb-2">TODO: Implement Kanban Board</h3>
-//         <p className="text-sm mb-4">Project ID: {projectId}</p>
-//         <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded border border-yellow-200 dark:border-yellow-800">
-//           <p className="text-sm text-yellow-800 dark:text-yellow-200">
-//             📋 This will be the main interactive Kanban board with drag-and-drop functionality
-//           </p>
-//         </div>
-//       </div>
-//     </div>
-//   )
-// }
+  const handleDragEnd = (event: DragEndEvent) => {
+  const { active, over } = event;
+  setActiveTask(null);
+  if (!over || active.id === over.id) return;
 
+  const activeType = active.data.current?.type;
+  const overType = over.data.current?.type;
+
+  // --- LIST REORDER ---
+  if (activeType === 'list' && overType === 'list') {
+    const oldIndex = lists.findIndex(l => l.id === active.id);
+    const newIndex = lists.findIndex(l => l.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newLists = arrayMove(lists, oldIndex, newIndex);
+    setLists(newLists);
+
+    fetch('/api/lists/reorder', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        newLists.map((l, idx) => ({ id: l.id, position: idx }))
+      ),
+    });
+    return;
+  }
+
+  // --- TASK REORDER (same list or cross-list) ---
+  if (activeType === 'task' && (overType === 'task' || overType === 'list')) {
+    const activeTaskObj = tasks.find(t => t.id === active.id);
+    if (!activeTaskObj) return;
+
+    const oldListId = activeTaskObj.listId;
+    // let targetListId = oldListId;
+    let overIndex = -1;
+
+    let targetListId: string = String(activeTaskObj.listId); // default to current list
+
+if (overType === 'task') {
+  const overTask = tasks.find(t => t.id === over.id);
+  if (!overTask) return;
+  targetListId = String(overTask.listId);
+
+  const targetTasks = tasks
+    .filter(t => t.listId === targetListId)
+    .sort((a, b) => a.position - b.position);
+  overIndex = targetTasks.findIndex(t => t.id === overTask.id);
+} else if (overType === 'list') {
+  targetListId = String(over.id); // cast the UniqueIdentifier to string
+  const targetTasks = tasks
+    .filter(t => t.listId === targetListId)
+    .sort((a, b) => a.position - b.position);
+  overIndex = targetTasks.length; // add at the end
+}
+
+
+    // --- Create new task state ---
+    const newTasksMap = new Map(tasks.map(t => [t.id, { ...t }]));
+    newTasksMap.delete(activeTaskObj.id); // remove from old position
+
+    const newActiveTask = { ...activeTaskObj, listId: targetListId };
+    
+    // Tasks for target list
+    const targetListTasks = [...newTasksMap.values()]
+      .filter(t => t.listId === targetListId)
+      .sort((a, b) => a.position - b.position);
+    
+    targetListTasks.splice(overIndex, 0, newActiveTask); // insert active task
+
+    // Tasks for old list
+    const oldListTasks = [...newTasksMap.values()]
+      .filter(t => t.listId === oldListId)
+      .sort((a, b) => a.position - b.position);
+
+    // Normalize positions
+    oldListTasks.forEach((t, idx) => newTasksMap.set(t.id, { ...t, position: idx }));
+    targetListTasks.forEach((t, idx) => newTasksMap.set(t.id, { ...t, position: idx }));
+
+    const finalTasks = [...newTasksMap.values()];
+    setTasks(finalTasks);
+
+    // Send to server (exclude temp tasks)
+    const finalTasksToSend = finalTasks
+      .filter(t => !t.id.startsWith("temp-"))
+      .map(t => ({ id: t.id, listId: t.listId, position: t.position }));
+
+    fetch('/api/tasks/reorder', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(finalTasksToSend),
+    });
+  }
+};
+
+
+
+  return (
+    <>
+      <CreateListModal projectId={projectId} />
+      <CreateTaskModal />
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+        onDragStart={handleDragStart}
+      >
+        {/* Wrap all lists in SortableContext */}
+        <SortableContext
+          items={lists.map(l => l.id)}
+          strategy={horizontalListSortingStrategy}
+        >
+          <div className="flex gap-4 overflow-x-auto p-4">
+            {lists.map(list => {
+  const listTasks = tasks
+    .filter(t => t.listId === list.id)
+    .sort((a, b) => a.position - b.position)
+
+  return (
+    <SortableList
+      key={list.id}
+      list={list}
+      onAddTask={() => handleAddTask(list.id)}
+    >
+      <SortableContext
+        items={listTasks.map(t => t.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        {listTasks.map(task => (
+          <SortableTask 
+            key={task.id} 
+            task={task} 
+            onClick={() => handleTaskClick(task)} 
+            />
+        ))}
+        
+
+      </SortableContext>
+    </SortableList>
+  )
+})}
+
+      <TaskDetailModal
+          task={selectedTask}
+          open={isTaskModalOpen}
+          onClose={() => setIsTaskModalOpen(false)}
+          projectId={projectId}
+        />
+            {/* Add List button */}
+            <div className="flex-shrink-0 w-80 flex items-center justify-center">
+              <button
+                onClick={handleAddList}
+                className="w-full p-3 border-2 border-dashed rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors"
+              >
+                + Add List
+              </button>
+            </div>
+          </div>
+        </SortableContext>
+
+        {/* Drag Preview */}
+        <DragOverlay>
+          {activeTask ? <SortableTask task={activeTask} /> : null}
+        </DragOverlay>
+      </DndContext>
+    </>
+  )
+}

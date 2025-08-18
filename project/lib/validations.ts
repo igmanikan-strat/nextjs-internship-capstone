@@ -56,3 +56,9 @@ export const createListSchema = z.object({
   title: z.string().min(1).max(50),
   projectId: z.string().uuid(),
 });
+
+export const taskUpdateSchema = taskSchema
+  .partial()
+  .refine(data => !!data.listId || !!data.position || !!data.title, {
+    message: "At least one of listId, position, or title must be present",
+  });

@@ -103,7 +103,7 @@ export function CreateTaskModal() {
 
   return (
     <Dialog open={isOpen} onOpenChange={close}>
-      <DialogContent>
+      <DialogContent className="bg-white dark:bg-neutral-900">
         <DialogHeader>
           <DialogTitle>Create Task</DialogTitle>
         </DialogHeader>

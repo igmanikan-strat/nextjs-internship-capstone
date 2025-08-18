@@ -1,4 +1,8 @@
 //lib/db/schema.ts
+if (typeof window !== "undefined") {
+  throw new Error("🚨 schema.ts imported in the browser!");
+}
+
 import {
   varchar,
   pgTable,
@@ -112,3 +116,6 @@ export const comments = pgTable(
 
 export type List = InferModel<typeof lists>; // ✅ this is for reading lists
 export type NewList = typeof lists.$inferInsert; // ✅ optional: for inserting new lists
+
+export type Task = InferModel<typeof tasks>; // ✅ for reading tasks
+export type NewTask = typeof tasks.$inferInsert; // ✅ for inserting new tasks

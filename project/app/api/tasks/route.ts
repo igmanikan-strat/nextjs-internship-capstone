@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
-import { eq } from "drizzle-orm"
+import { eq, asc } from "drizzle-orm"
 import { tasks } from "@/lib/db/schema"
 
 export async function GET() {
@@ -11,8 +11,8 @@ export async function GET() {
     if (!userId) return new NextResponse("Unauthorized", { status: 401 })
 
     const userTasks = await db.query.tasks.findMany({
-      where: (task, { eq }) => eq(task.userId, userId),
-      orderBy: (task, { asc }) => asc(task.createdAt),
+      where: eq(tasks.userId, userId),
+      orderBy: [asc(tasks.listId), asc(tasks.position)], // ✅
     })
 
     return NextResponse.json(userTasks)

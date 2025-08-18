@@ -1,9 +1,8 @@
 // hooks/use-projects.ts
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { projects } from "@/lib/db/schema"
+import { Project } from "@/types"
 
-type Project = typeof projects.$inferSelect
-type NewProject = typeof projects.$inferInsert
+type NewProject = Omit<Project, "id">
 
 export function useProjects() {
   return useQuery<Project[]>({

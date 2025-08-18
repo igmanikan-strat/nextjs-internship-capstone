@@ -1,101 +1,127 @@
 // hooks/use-tasks.ts
+import { useBoardStore } from "@/stores/board-store";
+import { Task } from "@/types";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useEffect } from "react";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import {
-  getTasksByProjectId,
-  createTask as createTaskFn,
-  updateTask as updateTaskFn,
-  deleteTask as deleteTaskFn,
-  moveTask as moveTaskFn,
-} from "@/lib/db";
-import { Task } from "@/types"
+// ✅ Fetch tasks only once (initial load)
+async function fetchTasks(projectId: string): Promise<Task[]> {
+  const res = await fetch(`/api/projects/${projectId}/tasks`);
+  if (!res.ok) throw new Error("Failed to fetch tasks");
+  const data = await res.json();
+
+  return data.map((task: any) => ({
+    ...task,
+    description: task.description ?? "",
+    priority: task.priority ?? "medium",
+    createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
+    updatedAt: task.updatedAt ? new Date(task.updatedAt) : new Date(),
+  }));
+}
 
 export function useTasks(projectId: string) {
-  const queryClient = useQueryClient()
-
   const {
-    data: tasks,
-    isLoading,
-    error,
-  } = useQuery({
+    setTasks,
+    addTask,
+    updateTask,
+    deleteTask,
+    moveTaskOptimistic,
+  } = useBoardStore();
+
+  // 🔹 Load once into Zustand
+  const { data, isLoading, error } = useQuery<Task[], Error>({
     queryKey: ["tasks", projectId],
-    queryFn: () => getTasksByProjectId(projectId),
-    enabled: !!projectId,
-  })
+    queryFn: () => fetchTasks(projectId),
+    staleTime: 1000 * 60 * 5, // cache 5 min
+  });
 
-  // Create task
-  const createTask = useMutation({
-    mutationFn: createTaskFn,
-    onMutate: async (newTask) => {
-      await queryClient.cancelQueries({ queryKey: ["tasks", projectId] })
+  // ✅ Hydrate Zustand when data arrives
+  useEffect(() => {
+    if (data) setTasks(data as Task[]);
+  }, [data, setTasks]);
 
-      const previousTasks = queryClient.getQueryData<Task[]>(["tasks", projectId])
-
-      queryClient.setQueryData<Task[]>(["tasks", projectId], (old = []) => [
-        ...old,
-        {
-          ...newTask,
-          id: `temp-${Date.now()}`,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as unknown as Task
-
-      ])
-
-      return { previousTasks }
+  // 🔹 Create Task
+  const createTaskMutation = useMutation({
+    mutationFn: async (newTask: Partial<Task>) => {
+      const res = await fetch(`/api/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTask),
+      });
+      if (!res.ok) throw new Error("Failed to create task");
+      return res.json();
     },
-    onError: (_err, _newTask, context) => {
-      queryClient.setQueryData(["tasks", projectId], context?.previousTasks)
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks", projectId] })
-    },
-})
+    onSuccess: (task: Task) => addTask(task),
+  });
 
-  // Update task
-  const updateTask = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Task> }) =>
-      updateTaskFn(id, data as any), // ensure you cast or fix the expected type in `updateTask`
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks", projectId] })
+  // 🔹 Update Task (optimistic)
+  const updateTaskMutation = useMutation({
+    mutationFn: async (task: Partial<Task> & { id: string }) => {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(task),
+      });
+      if (!res.ok) throw new Error("Failed to update task");
+      return res.json();
     },
-  })
-
-  // Delete task
-  const deleteTask = useMutation({
-    mutationFn: deleteTaskFn,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks", projectId] })
+    onMutate: async (updates) => {
+      // ✅ Optimistic update: update store immediately
+      updateTask(updates.id, updates);
     },
-  })
+    onSuccess: (updatedTask) => {
+      // ✅ Replace optimistic update with server-validated data
+      updateTask(updatedTask.id, updatedTask);
+    },
+    onError: (err, task) => {
+      console.error("Update task failed, rolling back", err);
+      // Optional: refetch tasks or show error toast
+    },
+  });
 
-  const moveTask = useMutation({
-  mutationFn: ({
-    taskId,
-    newListId,
-    position,
-  }: {
-    taskId: string
-    newListId: string
-    position: number
-  }) => moveTaskFn(taskId, newListId, position),
+  // 🔹 Delete Task
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete task");
+      return taskId;
+    },
+    onSuccess: (taskId: string) => deleteTask(taskId),
+  });
 
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ["tasks", projectId] })
-  },
-})
+  // 🔹 Move Task (drag-and-drop reorder, optimistic)
+  const moveTaskMutation = useMutation({
+    mutationFn: async ({
+      taskId,
+      newListId,
+      newPosition,
+    }: {
+      taskId: string;
+      newListId: string;
+      newPosition: number;
+    }) => {
+      const res = await fetch(`/api/tasks/reorder`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify([
+          { id: taskId, listId: newListId, position: newPosition },
+        ]),
+      });
+      if (!res.ok) throw new Error("Failed to move task");
+      return res.json();
+    },
+    onMutate: ({ taskId, newListId, newPosition }) => {
+      moveTaskOptimistic(taskId, newListId, newPosition);
+    },
+  });
 
   return {
-    tasks,
+    tasks: data,
     isLoading,
     error,
-    createTask: createTask.mutate,
-    isCreating: createTask.isPending,
-    updateTask: updateTask.mutate,
-    isUpdating: updateTask.isPending,
-    deleteTask: deleteTask.mutate,
-    isDeleting: deleteTask.isPending,
-    moveTask: moveTask.mutate,
-    isMoving: moveTask.isPending,
-  }
+    createTask: createTaskMutation.mutate,
+    updateTask: updateTaskMutation.mutateAsync, // ✅ instant update
+    deleteTask: deleteTaskMutation.mutate,
+    moveTask: moveTaskMutation.mutate,
+  };
 }

@@ -65,7 +65,7 @@ export function EditProjectModal({ onClose, project }: EditProjectModalProps) {
         id: project.id,
         data: {
           ...data,
-          dueDate: data.dueDate ? new Date(data.dueDate) : null,
+          dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
         }
       },
       {

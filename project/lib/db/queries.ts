@@ -9,6 +9,9 @@ import { v4 as uuidv4 } from "uuid"
 import { tasks } from "./schema"
 import { z } from "zod"
 import { lists } from "./schema";
+import { taskUpdateSchema } from "@/lib/validations"; // import the new schema
+import { Task } from "@/types"
+import { asc } from "drizzle-orm"
 
 export async function getAllProjects() {
   const { userId } = auth(); // ✅ Get Clerk user
@@ -38,14 +41,35 @@ export async function deleteProject(id: string) {
   return await db.delete(schema.projects).where(eq(schema.projects.id, id));
 }
 
-export async function getTasksByProjectId(projectId: string) {
+export async function getTasksByProjectId(projectId: string): Promise<Task[]> {
   const { userId } = auth()
   if (!userId) throw new Error("Unauthorized")
 
-  return await db.query.tasks.findMany({
+  const rows = await db.query.tasks.findMany({
     where: (task, { eq }) => eq(task.projectId, projectId),
-    orderBy: (task, { asc }) => asc(task.createdAt),
+    orderBy: [asc(tasks.listId), asc(tasks.position)], // ✅ not a callback
   })
+
+  return rows.map(row => ({
+    id: row.id,
+    title: row.title,
+    description: row.description ?? null,
+    listId: row.listId,
+    assigneeId: row.assigneeId ?? null,
+    priority:
+      row.priority === 1 ? "low" :
+      row.priority === 2 ? "medium" :
+      row.priority === 3 ? "high" :
+      "low",
+    dueDate: row.dueDate ?? null,
+    position: row.position,
+    createdAt: row.createdAt ?? new Date(),
+    updatedAt: row.updatedAt ?? new Date(),
+    comments: [],
+    userId: row.userId,
+    projectId: row.projectId,
+  }));
+
 }
 
 export async function getTaskById(id: string) {
@@ -91,20 +115,26 @@ const priorityMap = {
   high: 3,
 } as const
 
-export async function updateTask(id: string, input: z.infer<typeof taskSchema>) {
-  const { userId } = auth()
-  if (!userId) throw new Error("Unauthorized")
+export async function updateTask(id: string, input: z.infer<typeof taskUpdateSchema>) {
+  const { userId } = auth();
+  if (!userId) throw new Error("Unauthorized");
 
-  const validated = taskSchema.parse(input)
+  const validated = taskUpdateSchema.parse(input);
+
+  const priorityMap = {
+    low: 1,
+    medium: 2,
+    high: 3,
+  } as const;
 
   return await db.update(tasks)
     .set({
       ...validated,
-      priority: priorityMap[validated.priority],
-      dueDate: validated.dueDate ? new Date(validated.dueDate) : null,
+      priority: validated.priority ? priorityMap[validated.priority] : undefined,
+      dueDate: validated.dueDate ? new Date(validated.dueDate) : undefined,
       updatedAt: new Date(),
     })
-    .where(eq(tasks.id, id))
+    .where(eq(tasks.id, id));
 }
 
 export async function deleteTask(id: string) {
@@ -113,6 +143,14 @@ export async function deleteTask(id: string) {
 
   return await db.delete(tasks).where(eq(tasks.id, id))
 }
+
+export async function deleteList(listId: string) {
+  const user = await auth();
+  if (!user) throw new Error("Unauthorized");
+
+  return await db.delete(lists).where(eq(lists.id, listId)).returning();
+}
+
 
 export async function moveTask(taskId: string, newListId: string, position: number) {
   const { userId } = auth()
