@@ -1,77 +1,127 @@
-// TODO: Task 4.4 - Build task creation and editing functionality
-// TODO: Task 5.4 - Implement optimistic UI updates for smooth interactions
+// hooks/use-tasks.ts
+import { useBoardStore } from "@/stores/board-store";
+import { Task } from "@/types";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useEffect } from "react";
 
-/*
-TODO: Implementation Notes for Interns:
+// ✅ Fetch tasks only once (initial load)
+async function fetchTasks(projectId: string): Promise<Task[]> {
+  const res = await fetch(`/api/projects/${projectId}/tasks`);
+  if (!res.ok) throw new Error("Failed to fetch tasks");
+  const data = await res.json();
 
-Custom hook for task data management:
-- Fetch tasks for a project
-- Create new task
-- Update task
-- Delete task
-- Move task between lists
-- Bulk operations
+  return data.map((task: any) => ({
+    ...task,
+    description: task.description ?? "",
+    priority: task.priority ?? "medium",
+    createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
+    updatedAt: task.updatedAt ? new Date(task.updatedAt) : new Date(),
+  }));
+}
 
-Features:
-- Optimistic updates for smooth UX
-- Real-time synchronization
-- Conflict resolution
-- Undo functionality
-- Batch operations
-
-Example structure:
 export function useTasks(projectId: string) {
-  const queryClient = useQueryClient()
-  
   const {
-    data: tasks,
-    isLoading,
-    error
-  } = useQuery({
-    queryKey: ['tasks', projectId],
-    queryFn: () => queries.tasks.getByProject(projectId),
-    enabled: !!projectId
-  })
-  
-  const createTask = useMutation({
-    mutationFn: queries.tasks.create,
-    onMutate: async (newTask) => {
-      // Optimistic update
-      await queryClient.cancelQueries({ queryKey: ['tasks', projectId] })
-      const previousTasks = queryClient.getQueryData(['tasks', projectId])
-      queryClient.setQueryData(['tasks', projectId], (old: Task[]) => [...old, { ...newTask, id: 'temp-' + Date.now() }])
-      return { previousTasks }
+    setTasks,
+    addTask,
+    updateTask,
+    deleteTask,
+    moveTaskOptimistic,
+  } = useBoardStore();
+
+  // 🔹 Load once into Zustand
+  const { data, isLoading, error } = useQuery<Task[], Error>({
+    queryKey: ["tasks", projectId],
+    queryFn: () => fetchTasks(projectId),
+    staleTime: 1000 * 60 * 5, // cache 5 min
+  });
+
+  // ✅ Hydrate Zustand when data arrives
+  useEffect(() => {
+    if (data) setTasks(data as Task[]);
+  }, [data, setTasks]);
+
+  // 🔹 Create Task
+  const createTaskMutation = useMutation({
+    mutationFn: async (newTask: Partial<Task>) => {
+      const res = await fetch(`/api/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTask),
+      });
+      if (!res.ok) throw new Error("Failed to create task");
+      return res.json();
     },
-    onError: (err, newTask, context) => {
-      // Rollback on error
-      queryClient.setQueryData(['tasks', projectId], context?.previousTasks)
+    onSuccess: (task: Task) => addTask(task),
+  });
+
+  // 🔹 Update Task (optimistic)
+  const updateTaskMutation = useMutation({
+    mutationFn: async (task: Partial<Task> & { id: string }) => {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(task),
+      });
+      if (!res.ok) throw new Error("Failed to update task");
+      return res.json();
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] })
-    }
-  })
-  
+    onMutate: async (updates) => {
+      // ✅ Optimistic update: update store immediately
+      updateTask(updates.id, updates);
+    },
+    onSuccess: (updatedTask) => {
+      // ✅ Replace optimistic update with server-validated data
+      updateTask(updatedTask.id, updatedTask);
+    },
+    onError: (err, task) => {
+      console.error("Update task failed, rolling back", err);
+      // Optional: refetch tasks or show error toast
+    },
+  });
+
+  // 🔹 Delete Task
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete task");
+      return taskId;
+    },
+    onSuccess: (taskId: string) => deleteTask(taskId),
+  });
+
+  // 🔹 Move Task (drag-and-drop reorder, optimistic)
+  const moveTaskMutation = useMutation({
+    mutationFn: async ({
+      taskId,
+      newListId,
+      newPosition,
+    }: {
+      taskId: string;
+      newListId: string;
+      newPosition: number;
+    }) => {
+      const res = await fetch(`/api/tasks/reorder`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify([
+          { id: taskId, listId: newListId, position: newPosition },
+        ]),
+      });
+      if (!res.ok) throw new Error("Failed to move task");
+      return res.json();
+    },
+    onMutate: ({ taskId, newListId, newPosition }) => {
+      moveTaskOptimistic(taskId, newListId, newPosition);
+    },
+  });
+
   return {
-    tasks,
+    tasks: data,
     isLoading,
     error,
-    createTask: createTask.mutate,
-    isCreating: createTask.isPending
-  }
-}
-*/
-
-// Placeholder to prevent import errors
-export function useTasks(projectId: string) {
-  console.log(`TODO: Implement useTasks hook for project ${projectId}`)
-  return {
-    tasks: [],
-    isLoading: false,
-    error: null,
-    createTask: (data: any) => console.log("TODO: Create task", data),
-    updateTask: (id: string, data: any) => console.log(`TODO: Update task ${id}`, data),
-    deleteTask: (id: string) => console.log(`TODO: Delete task ${id}`),
-    moveTask: (taskId: string, newListId: string, position: number) =>
-      console.log(`TODO: Move task ${taskId} to list ${newListId} at position ${position}`),
-  }
+    createTask: createTaskMutation.mutate,
+    updateTask: updateTaskMutation.mutateAsync, // ✅ instant update
+    deleteTask: deleteTaskMutation.mutate,
+    moveTask: moveTaskMutation.mutate,
+  };
 }

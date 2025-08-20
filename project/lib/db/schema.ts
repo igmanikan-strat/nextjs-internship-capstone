@@ -1,44 +1,121 @@
-// TODO: Task 3.1 - Design database schema for users, projects, lists, and tasks
-// TODO: Task 3.3 - Set up Drizzle ORM with type-safe schema definitions
+//lib/db/schema.ts
+if (typeof window !== "undefined") {
+  throw new Error("🚨 schema.ts imported in the browser!");
+}
 
-/*
-TODO: Implementation Notes for Interns:
+import {
+  varchar,
+  pgTable,
+  uuid,
+  text,
+  timestamp,
+  integer,
+  primaryKey,
+  foreignKey,
+  index,
+} from 'drizzle-orm/pg-core';
+import { InferModel } from "drizzle-orm";
+// --- USERS ---
+export const users = pgTable("users", {
+  id: text("id").primaryKey(),
+  clerkId: text("clerk_id").notNull(),
+  email: varchar("email", { length: 256 }).notNull(),
+  name: varchar("name", { length: 256 }).notNull(),
+  username: varchar("username", { length: 256 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
-1. Install Drizzle ORM dependencies:
-   - drizzle-orm
-   - drizzle-kit
-   - @vercel/postgres (if using Vercel Postgres)
-   - OR pg + @types/pg (if using regular PostgreSQL)
+// --- PROJECTS ---
+export const projects = pgTable(
+  'projects',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: text('name').notNull(),
+    description: text('description'),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    dueDate: timestamp('due_date'),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+  (project) => ({
+    ownerIdx: index('projects_owner_idx').on(project.ownerId),
+  })
+);
 
-2. Define schemas for:
-   - users (id, clerkId, email, name, createdAt, updatedAt)
-   - projects (id, name, description, ownerId, createdAt, updatedAt, dueDate)
-   - lists (id, name, projectId, position, createdAt, updatedAt)
-   - tasks (id, title, description, listId, assigneeId, priority, dueDate, position, createdAt, updatedAt)
-   - comments (id, content, taskId, authorId, createdAt, updatedAt)
+// --- LISTS ---
+export const lists = pgTable(
+  'lists',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: text('name').notNull(),
+    title: text("title").notNull(), // ✅ this line is important
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+    description: text("description").notNull(),
+  },
+  (list) => ({
+    projectIdx: index('lists_project_idx').on(list.projectId),
+  })
+);
 
-3. Set up proper relationships between tables
-4. Add indexes for performance
-5. Configure migrations
+// --- TASKS ---
+export const tasks = pgTable(
+  'tasks',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    title: text('title').notNull(),
+    description: text('description'),
+    userId: text('user_id').notNull().references(() => users.id),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    listId: uuid('list_id')
+      .notNull()
+      .references(() => lists.id, { onDelete: 'cascade' }),
+    assigneeId: text('assignee_id').references(() => users.id),
+    priority: integer('priority').default(1), // 1 = low, 2 = medium, 3 = high
+    dueDate: timestamp('due_date'),
+    position: integer('position').notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+  (task) => ({
+    listIdx: index('tasks_list_idx').on(task.listId),
+    assigneeIdx: index('tasks_assignee_idx').on(task.assigneeId),
+  })
+  
+);
 
-Example structure:
-import { pgTable, text, timestamp, integer, uuid } from 'drizzle-orm/pg-core'
+// --- COMMENTS ---
+export const comments = pgTable(
+  'comments',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    content: text('content').notNull(),
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    authorId: text('author_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+  (comment) => ({
+    taskIdx: index('comments_task_idx').on(comment.taskId),
+    authorIdx: index('comments_author_idx').on(comment.authorId),
+  })
+);
 
-export const users = pgTable('users', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  clerkId: text('clerk_id').notNull().unique(),
-  email: text('email').notNull(),
-  name: text('name').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-})
+export type List = InferModel<typeof lists>; // ✅ this is for reading lists
+export type NewList = typeof lists.$inferInsert; // ✅ optional: for inserting new lists
 
-// ... other tables
-*/
-
-// Placeholder exports to prevent import errors
-export const users = "TODO: Implement users table schema"
-export const projects = "TODO: Implement projects table schema"
-export const lists = "TODO: Implement lists table schema"
-export const tasks = "TODO: Implement tasks table schema"
-export const comments = "TODO: Implement comments table schema"
+export type Task = InferModel<typeof tasks>; // ✅ for reading tasks
+export type NewTask = typeof tasks.$inferInsert; // ✅ for inserting new tasks

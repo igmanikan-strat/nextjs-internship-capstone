@@ -1,51 +1,185 @@
-// TODO: Task 4.4 - Build task creation and editing functionality
-// TODO: Task 5.6 - Create task detail modals and editing interfaces
+"use client"
 
-/*
-TODO: Implementation Notes for Interns:
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
 
-Modal for creating and editing tasks.
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useTaskModal } from "@/stores/task-modal-store"
+import { taskSchema } from "@/lib/validations"
+import { z } from "zod"
+import { useUser } from "@clerk/nextjs"
+import { useEffect } from "react"
 
-Features to implement:
-- Task title and description
-- Priority selection
-- Assignee selection
-- Due date picker
-- Labels/tags
-- Attachments
-- Comments section (for edit mode)
-- Activity history (for edit mode)
+type TaskFormValues = z.infer<typeof taskSchema>
 
-Form fields:
-- Title (required)
-- Description (rich text editor)
-- Priority (low/medium/high)
-- Assignee (team member selector)
-- Due date (date picker)
-- Labels (tag input)
-- Attachments (file upload)
+const createTask = async (data: TaskFormValues) => {
+  console.log("Submitting task data:", data);
 
-Integration:
-- Use task validation schema
-- Call task creation/update API
-- Update board state optimistically
-- Handle file uploads
-- Real-time updates for comments
-*/
+  const res = await fetch("/api/tasks/create", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error("Task creation failed:", errorText);
+    throw new Error(errorText);
+  }
+
+  return res.json();
+};
+
 
 export function CreateTaskModal() {
+  const { isOpen, close, projectId, listId } = useTaskModal()
+  const { user } = useUser()
+  const queryClient = useQueryClient()
+
+  const form = useForm<TaskFormValues>({
+    // resolver: zodResolver(taskSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      priority: "medium",
+      dueDate: undefined,
+      assigneeId: user?.id ?? "",
+      projectId: "",
+      listId: "",
+      position: 0,
+    },
+  })
+
+  useEffect(() => {
+    if (isOpen && projectId && listId && user?.id) {
+      form.setValue("projectId", projectId);
+      form.setValue("listId", listId);
+      form.setValue("assigneeId", user.id); // ✅ set this dynamically too
+    }
+  }, [isOpen, projectId, listId, user?.id, form]);
+
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = form
+
+  const mutation = useMutation({
+    mutationFn: createTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks", projectId] })
+      close()
+    },
+    onError: (err) => {
+      console.error("Task creation failed:", err)
+    },
+  })
+
+  const onSubmit = (data: TaskFormValues) => {
+    console.log("Creating task with data:", data); // Debug
+    mutation.mutate(data);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white dark:bg-outer_space-500 rounded-lg p-6 w-full max-w-2xl mx-4">
-        <h3 className="text-lg font-semibold text-outer_space-500 dark:text-platinum-500 mb-4">
-          TODO: Create/Edit Task Modal
-        </h3>
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded border border-yellow-200 dark:border-yellow-800">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">
-            📋 Implement task creation/editing form with rich features
-          </p>
-        </div>
-      </div>
-    </div>
+    <Dialog open={isOpen} onOpenChange={close}>
+      <DialogContent className="bg-white dark:bg-neutral-900">
+        <DialogHeader>
+          <DialogTitle>Create Task</DialogTitle>
+        </DialogHeader>
+
+        <form
+            onSubmit={handleSubmit(onSubmit, (err) => {
+              console.error("❌ Validation failed", err);
+            })}
+          >
+          <div>
+            <Input {...register("title")} placeholder="Task title" />
+            {errors.title && (
+              <p className="text-sm text-red-500">{errors.title.message}</p>
+            )}
+          </div>
+
+          <div>
+            <Textarea
+              {...register("description")}
+              placeholder="Description (optional)"
+            />
+            {errors.description && (
+              <p className="text-sm text-red-500">
+                {errors.description.message}
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1">Priority</label>
+              <Select
+                value={watch("priority")}
+                onValueChange={(val) =>
+                  setValue("priority", val as "low" | "medium" | "high")
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-sm mb-1">Due Date</label>
+              <Input
+                type="date"
+                value={watch("dueDate")?.slice(0, 10) || ""}
+                onChange={(e) =>
+                  setValue(
+                    "dueDate",
+                    new Date(e.target.value).toISOString()
+                  )
+                }
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="ghost" type="button" onClick={close}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              Create Task
+            </Button>
+            {mutation.isError && (
+              <p className="text-sm text-red-500">Failed to create task. Check console for details.</p>
+            )}
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

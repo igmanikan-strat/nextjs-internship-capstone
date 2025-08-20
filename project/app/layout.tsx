@@ -6,6 +6,7 @@ import "./globals.css"
 import { ClerkProvider } from "@clerk/nextjs"
 // import { auth } from "@clerk/nextjs/server"
 import { ThemeProvider } from "@/components/theme-provider"
+import { ReactQueryProvider } from "@/app/providers"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -21,11 +22,12 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    // TODO: Task 2.1 - Wrap with ClerkProvider once Clerk is set up
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <body className={inter.className}>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ReactQueryProvider>
+            <ThemeProvider>{children}</ThemeProvider>
+          </ReactQueryProvider>
         </body>
       </html>
     </ClerkProvider>

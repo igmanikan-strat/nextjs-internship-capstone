@@ -1,47 +1,109 @@
-// TODO: Task 4.1 - Implement project CRUD operations
-// TODO: Task 4.4 - Build task creation and editing functionality
+//components/modals/create-project-modal.tsx
+'use client'
 
-/*
-TODO: Implementation Notes for Interns:
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { createProjectSchema } from '@/lib/validations'
+import { useCreateProject } from '@/hooks/use-projects'
+import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { useAuth } from '@clerk/nextjs'
 
-Modal for creating new projects with form validation.
+type CreateProjectInput = z.infer<typeof createProjectSchema>
 
-Features to implement:
-- Form with project name, description, due date
-- Zod validation
-- Error handling
-- Loading states
-- Success feedback
-- Team member assignment
-- Project template selection
+type CreateProjectModalProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
 
-Form fields:
-- Name (required)
-- Description (optional)
-- Due date (optional)
-- Team members (optional)
-- Project template (optional)
-- Privacy settings
+export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalProps) {
+  const [hasMounted, setHasMounted] = useState(false)
 
-Integration:
-- Use project validation schema from lib/validations.ts
-- Call project creation API
-- Update project list optimistically
-- Handle errors gracefully
-*/
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
-export function CreateProjectModal() {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting }
+  } = useForm<CreateProjectInput>({
+    resolver: zodResolver(createProjectSchema),
+  })
+
+  const queryClient = useQueryClient()
+  const { mutate: createProject } = useCreateProject()
+  const { userId } = useAuth()
+
+  if (!hasMounted || !open) return null
+
+  const onSubmit = async (data: CreateProjectInput) => {
+    if (!userId) {
+      console.error('🚫 No user ID found')
+      return
+    }
+
+    createProject(
+      {
+        ...data,
+        ownerId: userId,
+        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ['projects'] })
+          onOpenChange(false)
+        },
+        onError: (error) => {
+          console.error('❌ Failed to create project', error)
+        },
+      }
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white dark:bg-outer_space-500 rounded-lg p-6 w-full max-w-md mx-4">
         <h3 className="text-lg font-semibold text-outer_space-500 dark:text-platinum-500 mb-4">
-          TODO: Create Project Modal
+          Create New Project
         </h3>
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded border border-yellow-200 dark:border-yellow-800">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">
-            📋 Implement project creation form with validation
-          </p>
-        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium">Project Name</label>
+            <Input {...register('name')} />
+            {errors.name && (
+              <p className="text-red-500 text-sm">{errors.name.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">Description</label>
+            <Textarea {...register('description')} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">Due Date</label>
+            <Input type="date" {...register('dueDate')} />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : 'Create'}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   )
