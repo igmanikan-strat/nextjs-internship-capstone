@@ -1,17 +1,14 @@
-//projects/page.tsx
 'use client'
 
 import { useState } from 'react'
-import { Plus, Search, Filter, Trash2, Pencil } from 'lucide-react'
+import { Plus, Search, Filter } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { CreateProjectModal } from '@/components/modals/create-project-modal'
 import { DashboardLayout } from '@/components/dashboard-layout'
 import { useProjects, useDeleteProject } from '@/hooks/use-projects'
-import { EditProjectModal } from '@/components/modals/edit-project-modal' // ✅ New import
-import type { Project } from '@/types' // Make sure this matches your type
+import { EditProjectModal } from '@/components/modals/edit-project-modal'
 import type { EditableProject } from '@/types'
-import Link from 'next/link'
 import { ProjectCard } from '@/components/project-card'
 
 export default function ProjectsPage() {
@@ -21,9 +18,13 @@ export default function ProjectsPage() {
   const [editProject, setEditProject] = useState<EditableProject | null>(null)
 
   const { data: projects = [], isLoading } = useProjects()
-  const { mutate: deleteProject, isPending: isDeleting } = useDeleteProject()
+  const { mutate: deleteProject } = useDeleteProject()
 
-  const filteredProjects = projects.filter((project) =>
+  // Deduplicate projects by ID in case API returns duplicates
+  const uniqueProjects = Array.from(new Map(projects.map(p => [p.id, p])).values())
+
+  // Filter projects for search
+  const filteredProjects = uniqueProjects.filter((project) =>
     project.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
@@ -89,33 +90,31 @@ export default function ProjectsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProjects.map((project) => (
               <ProjectCard
-  key={project.id}
-  project={{
-    id: project.id,
-    name: project.name,
-    description: project.description,
-    dueDate: project.dueDate ? new Date(project.dueDate) : undefined,
-    progress: 0.6, // ← hardcoded for now
-    memberCount: 5, // ← hardcoded for now
-    status: 'active', // ← hardcoded for now
-  }}
-  onEdit={() =>
-    setEditProject({
-      id: project.id,
-      name: project.name,
-      description: project.description ?? '',
-      dueDate:
-        project.dueDate instanceof Date
-          ? project.dueDate.toISOString().split('T')[0]
-          : typeof project.dueDate === 'string'
-          ? new Date(project.dueDate).toISOString().split('T')[0]
-          : undefined,
-    })
-  }
-  onDelete={() => deleteProject(project.id)}
-/>
-
-
+                key={project.id} // ✅ unique key
+                project={{
+                  id: project.id,
+                  name: project.name,
+                  description: project.description,
+                  dueDate: project.dueDate ? new Date(project.dueDate) : undefined,
+                  progress: 0.6,
+                  memberCount: 5,
+                  status: 'active',
+                }}
+                onEdit={() =>
+                  setEditProject({
+                    id: project.id,
+                    name: project.name,
+                    description: project.description ?? '',
+                    dueDate:
+                      project.dueDate instanceof Date
+                        ? project.dueDate.toISOString().split('T')[0]
+                        : typeof project.dueDate === 'string'
+                        ? new Date(project.dueDate).toISOString().split('T')[0]
+                        : undefined,
+                  })
+                }
+                onDelete={() => deleteProject(project.id)}
+              />
             ))}
           </div>
         ) : (

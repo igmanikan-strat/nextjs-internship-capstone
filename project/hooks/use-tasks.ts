@@ -24,7 +24,9 @@ export function useTasks(projectId: string) {
     setTasks,
     addTask,
     updateTask,
+    updateTasksBulk,
     deleteTask,
+    deleteTasksBulk,
     moveTaskOptimistic,
   } = useBoardStore();
 
@@ -32,10 +34,9 @@ export function useTasks(projectId: string) {
   const { data, isLoading, error } = useQuery<Task[], Error>({
     queryKey: ["tasks", projectId],
     queryFn: () => fetchTasks(projectId),
-    staleTime: 1000 * 60 * 5, // cache 5 min
+    staleTime: 1000 * 60 * 5,
   });
 
-  // ✅ Hydrate Zustand when data arrives
   useEffect(() => {
     if (data) setTasks(data as Task[]);
   }, [data, setTasks]);
@@ -54,28 +55,28 @@ export function useTasks(projectId: string) {
     onSuccess: (task: Task) => addTask(task),
   });
 
-  // 🔹 Update Task (optimistic)
+  // 🔹 Update Task
   const updateTaskMutation = useMutation({
     mutationFn: async (task: Partial<Task> & { id: string }) => {
-      const res = await fetch(`/api/tasks/${task.id}`, {
+      const { id, title, description, dueDate, priority } = task;
+
+      const res = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(task),
+        body: JSON.stringify({ title, description, dueDate, priority }),
       });
+
       if (!res.ok) throw new Error("Failed to update task");
       return res.json();
     },
-    onMutate: async (updates) => {
-      // ✅ Optimistic update: update store immediately
+    onMutate: (updates) => {
       updateTask(updates.id, updates);
     },
     onSuccess: (updatedTask) => {
-      // ✅ Replace optimistic update with server-validated data
       updateTask(updatedTask.id, updatedTask);
     },
     onError: (err, task) => {
       console.error("Update task failed, rolling back", err);
-      // Optional: refetch tasks or show error toast
     },
   });
 
@@ -86,10 +87,51 @@ export function useTasks(projectId: string) {
       if (!res.ok) throw new Error("Failed to delete task");
       return taskId;
     },
-    onSuccess: (taskId: string) => deleteTask(taskId),
+    onSuccess: (taskId) => deleteTask(taskId),
   });
 
-  // 🔹 Move Task (drag-and-drop reorder, optimistic)
+  // 🔹 Bulk Update Tasks
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async ({
+      taskIds,
+      updates,
+    }: {
+      taskIds: string[];
+      updates: Partial<Task>;
+    }) => {
+      const res = await fetch(`/api/tasks/bulk/update`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskIds, updates }),
+      });
+      if (!res.ok) throw new Error("Failed to bulk update tasks");
+      return res.json();
+    },
+    onMutate: ({ taskIds, updates }) => {
+      updateTasksBulk(taskIds, updates);
+    },
+    onSuccess: ({ updated }) => {
+      updated.forEach((t: Task) => updateTask(t.id, t));
+    },
+  });
+
+  // 🔹 Bulk Delete Tasks
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (taskIds: string[]) => {
+      const res = await fetch(`/api/tasks/bulk/delete`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskIds }),
+      });
+      if (!res.ok) throw new Error("Failed to bulk delete tasks");
+      return taskIds;
+    },
+    onMutate: (taskIds) => {
+      deleteTasksBulk(taskIds);
+    },
+  });
+
+  // 🔹 Move Task
   const moveTaskMutation = useMutation({
     mutationFn: async ({
       taskId,
@@ -120,8 +162,11 @@ export function useTasks(projectId: string) {
     isLoading,
     error,
     createTask: createTaskMutation.mutate,
-    updateTask: updateTaskMutation.mutateAsync, // ✅ instant update
+    updateTask: updateTaskMutation.mutateAsync,
     deleteTask: deleteTaskMutation.mutate,
+    bulkUpdateTasks: bulkUpdateMutation.mutate,
+    bulkDeleteTasks: bulkDeleteMutation.mutate,
     moveTask: moveTaskMutation.mutate,
+    bulkDeleteMutation,
   };
 }

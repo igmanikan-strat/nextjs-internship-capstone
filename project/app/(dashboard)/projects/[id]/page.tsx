@@ -3,6 +3,7 @@ import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import KanbanBoard from "@/components/kanban-board";
 import { getProjectById } from "@/lib/db/queries";
+import { ManageMembersButton } from "@/components/manage-members-button";
 
 type Project = {
   id: string;
@@ -12,7 +13,6 @@ type Project = {
 
 export default async function ProjectPage({ params }: { params: { id: string } }) {
   const projectId = params.id;
-
   const project = await getProjectById(projectId);
 
   if (!project) {
@@ -46,9 +46,9 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           </div>
 
           <div className="flex items-center space-x-2">
-            <button className="p-2 hover:bg-platinum-500 dark:hover:bg-payne's_gray-400 rounded-lg transition-colors">
-              <Users size={20} />
-            </button>
+            {/* 🔹 Client-side button for modal */}
+            <ManageMembersButton projectId={project.id} />
+
             <button className="p-2 hover:bg-platinum-500 dark:hover:bg-payne's_gray-400 rounded-lg transition-colors">
               <Calendar size={20} />
             </button>
@@ -62,10 +62,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         </div>
 
         {/* Kanban Board */}
-        <KanbanBoard projectId={projectId} />
-
-        {/* Other content */}
-        {/* ... */}
+        <KanbanBoard projectId={project.id} />
       </div>
     </DashboardLayout>
   );

@@ -1,85 +1,184 @@
-import { Calendar, ChevronLeft, ChevronRight, Plus } from "lucide-react"
+"use client"
+
+import { useEffect, useState } from "react"
+// import { Calendar as BigCalendar, momentLocalizer } from "react-big-calendar"
+import moment from "moment"
+import "react-big-calendar/lib/css/react-big-calendar.css"
+import { Plus } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react"
+import { Calendar as BigCalendar, momentLocalizer, Navigate } from "react-big-calendar"
+
+const localizer = momentLocalizer(moment)
+
+type Task = {
+  id: string
+  title: string
+  dueDate?: string
+  priority?: string
+  projectName?: string // 🔑 optional so you can display which project it belongs to
+}
+
+function CustomToolbar({ label, onNavigate }: any) {
+  return (
+    <div className="flex items-center justify-between mb-4">
+      {/* Navigation */}
+      <div className="flex items-center space-x-2">
+        <button
+          onClick={() => {
+            console.log("⬅️ Prev clicked")
+            onNavigate(Navigate.PREVIOUS)
+          }}
+          className="p-2 rounded-lg bg-platinum-200 dark:bg-outer_space-400 hover:bg-platinum-300 dark:hover:bg-outer_space-300"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <button
+          onClick={() => {
+            console.log("📅 Today clicked")
+            onNavigate(Navigate.TODAY)
+          }}
+          className="px-3 py-1 rounded-lg bg-blue_munsell-500 text-white hover:bg-blue_munsell-600 text-sm"
+        >
+          Today
+        </button>
+        <button
+          onClick={() => {
+            console.log("➡️ Next clicked")
+            onNavigate(Navigate.NEXT)
+          }}
+          className="p-2 rounded-lg bg-platinum-200 dark:bg-outer_space-400 hover:bg-platinum-300 dark:hover:bg-outer_space-300"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
+
+      {/* Label (e.g. August 2025) */}
+      <div className="flex items-center space-x-2 font-semibold text-outer_space-500 dark:text-platinum-500">
+        <CalendarIcon size={18} />
+        <span>{label}</span>
+      </div>
+    </div>
+  )
+}
+
+
 
 export default function CalendarPage() {
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [events, setEvents] = useState<any[]>([])
+
+  // 🔑 add date state
+  const [date, setDate] = useState(new Date())
+
+  // ✅ fetch ALL user tasks across projects
+  useEffect(() => {
+    async function fetchEvents() {
+      try {
+        const res = await fetch("/api/calendar/tasks")
+        if (!res.ok) {
+          console.error("Failed to fetch tasks")
+          return
+        }
+
+        const result: Task[] = await res.json()
+        setTasks(result)
+
+        const mapped = result
+          .filter((t) => t.dueDate)
+          .map((t) => ({
+            id: t.id,
+            title: t.projectName
+              ? `${t.title} (${t.projectName})`
+              : t.title,
+            start: new Date(t.dueDate!),
+            end: new Date(t.dueDate!),
+            resource: t,
+          }))
+        setEvents(mapped)
+      } catch (err) {
+        console.error("Failed to fetch tasks", err)
+      }
+    }
+    fetchEvents()
+  }, [])
+
+
+  // 📌 upcoming deadlines sorted
+  const upcoming = tasks
+    .filter((t) => t.dueDate && new Date(t.dueDate) >= new Date())
+    .sort(
+      (a, b) =>
+        new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()
+    )
+    .slice(0, 5)
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-outer_space-500 dark:text-platinum-500">Calendar</h1>
+          <h1 className="text-3xl font-bold text-outer_space-500 dark:text-platinum-500">
+            Calendar
+          </h1>
           <p className="text-payne's_gray-500 dark:text-french_gray-500 mt-2">
             View project deadlines and team schedules
           </p>
         </div>
-        <button className="inline-flex items-center px-4 py-2 bg-blue_munsell-500 text-white rounded-lg hover:bg-blue_munsell-600 transition-colors">
-          <Plus size={20} className="mr-2" />
-          Add Event
-        </button>
       </div>
 
-      {/* Implementation Tasks Banner */}
-      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">
-          📅 Calendar Implementation Tasks
-        </h3>
-        <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
-          <li>• Task 6.2: Add task due dates, priorities, and labels</li>
-          <li>• Task 6.6: Add bulk task operations and keyboard shortcuts</li>
-        </ul>
-      </div>
-
-      {/* Calendar Header */}
+      {/* Calendar Section */}
       <div className="bg-white dark:bg-outer_space-500 rounded-lg border border-french_gray-300 dark:border-payne's_gray-400 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-4">
-            <button className="p-2 hover:bg-platinum-500 dark:hover:bg-payne's_gray-400 rounded-lg">
-              <ChevronLeft size={20} />
-            </button>
-            <h2 className="text-xl font-semibold text-outer_space-500 dark:text-platinum-500">December 2024</h2>
-            <button className="p-2 hover:bg-platinum-500 dark:hover:bg-payne's_gray-400 rounded-lg">
-              <ChevronRight size={20} />
-            </button>
-          </div>
-          <div className="flex space-x-2">
-            <button className="px-3 py-1 text-sm bg-blue_munsell-100 text-blue_munsell-700 dark:bg-blue_munsell-900 dark:text-blue_munsell-300 rounded">
-              Month
-            </button>
-            <button className="px-3 py-1 text-sm text-payne's_gray-500 dark:text-french_gray-400 hover:bg-platinum-500 dark:hover:bg-payne's_gray-400 rounded">
-              Week
-            </button>
-            <button className="px-3 py-1 text-sm text-payne's_gray-500 dark:text-french_gray-400 hover:bg-platinum-500 dark:hover:bg-payne's_gray-400 rounded">
-              Day
-            </button>
-          </div>
-        </div>
-
-        {/* Calendar Grid Placeholder */}
-        <div className="h-96 bg-platinum-800 dark:bg-outer_space-400 rounded-lg flex items-center justify-center">
-          <div className="text-center text-payne's_gray-500 dark:text-french_gray-400">
-            <Calendar size={48} className="mx-auto mb-2" />
-            <p>Calendar Component Placeholder</p>
-            <p className="text-sm">TODO: Implement with react-big-calendar or similar</p>
-          </div>
+        <div className="h-[600px] rounded-lg overflow-hidden">
+          <BigCalendar
+            localizer={localizer}
+            events={events}
+            startAccessor="start"
+            endAccessor="end"
+            style={{ height: "100%", background: "white" }}
+            views={["month", "agenda"]}
+            popup
+            // 🔑 control date + navigation
+            date={date}
+            onNavigate={(newDate) => {
+              console.log("📅 Navigated to:", newDate)
+              setDate(newDate)
+            }}
+            components={{
+              toolbar: (props) => (
+                <CustomToolbar {...props} />
+              ),
+            }}
+          />
         </div>
       </div>
 
       {/* Upcoming Events */}
       <div className="bg-white dark:bg-outer_space-500 rounded-lg border border-french_gray-300 dark:border-payne's_gray-400 p-6">
-        <h3 className="text-lg font-semibold text-outer_space-500 dark:text-platinum-500 mb-4">Upcoming Deadlines</h3>
+        <h3 className="text-lg font-semibold text-outer_space-500 dark:text-platinum-500 mb-4">
+          Upcoming Deadlines
+        </h3>
         <div className="space-y-3">
-          {[
-            { title: "Website Redesign", date: "Dec 15, 2024", type: "Project Deadline" },
-            { title: "Team Meeting", date: "Dec 18, 2024", type: "Meeting" },
-            { title: "Mobile App Launch", date: "Dec 22, 2024", type: "Milestone" },
-          ].map((event, index) => (
+          {upcoming.length === 0 && (
+            <div className="text-sm text-payne's_gray-500 dark:text-french_gray-400">
+              No upcoming deadlines 🎉
+            </div>
+          )}
+          {upcoming.map((event, index) => (
             <div
               key={index}
               className="flex items-center justify-between p-3 bg-platinum-800 dark:bg-outer_space-400 rounded-lg"
             >
               <div>
-                <div className="font-medium text-outer_space-500 dark:text-platinum-500">{event.title}</div>
-                <div className="text-sm text-payne's_gray-500 dark:text-french_gray-400">{event.type}</div>
+                <div className="font-medium text-outer_space-500 dark:text-platinum-500">
+                  {event.title}
+                </div>
+                <div className="text-sm text-payne's_gray-500 dark:text-french_gray-400">
+                  {event.priority ?? "Task"}
+                </div>
               </div>
-              <div className="text-sm text-payne's_gray-500 dark:text-french_gray-400">{event.date}</div>
+              <div className="text-sm text-payne's_gray-500 dark:text-french_gray-400">
+                {moment(event.dueDate).format("MMM D, YYYY")}
+              </div>
             </div>
           ))}
         </div>
@@ -87,3 +186,4 @@ export default function CalendarPage() {
     </div>
   )
 }
+ 

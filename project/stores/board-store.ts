@@ -49,6 +49,17 @@ interface BoardState {
   setDraggedTask: (task: Task | null) => void;
   setDraggedOverList: (listId: string | null) => void;
   addTask: (task: Task) => void; // ✅ new
+  updateTasksBulk: (taskIds: string[], updates: Partial<Task>) => void;
+  deleteTasksBulk: (taskIds: string[]) => void;
+  selectedTaskIds: Set<string>;
+  toggleTaskSelection: (id: string, checked?: boolean) => void;
+  selectSingleTask: (id: string) => void;
+  selectRange: (fromId: string | null, toId: string) => void;
+  setLastSelected: (id: string | null) => void;
+  clearSelection: () => void;
+  selectAllTasks: () => void;
+  lastSelectedId: string | null;
+  moveTasks: (taskIds: string[], targetListId: string) => void;
 }
 
 
@@ -61,6 +72,9 @@ export const useBoardStore = create<BoardState>()(
     draggedOverList: null,
     isLoading: false,
     isSaving: false,
+    // tasks: [],
+    selectedTaskIds: new Set(),
+    lastSelectedId: null,
 
     addList: (list: List) => set((state) => ({ lists: [...state.lists, list] })),
     addTask: (task: Task) =>
@@ -170,6 +184,65 @@ export const useBoardStore = create<BoardState>()(
       }
     },
 
+    toggleTaskSelection: (id, checked) =>
+      set((state) => {
+        const selected = new Set(state.selectedTaskIds);
+        const isSelected = selected.has(id);
+
+        if (checked === undefined) {
+          // toggle mode
+          if (isSelected) selected.delete(id);
+          else selected.add(id);
+        } else {
+          // explicit true/false
+          if (checked) selected.add(id);
+          else selected.delete(id);
+        }
+
+        return { selectedTaskIds: selected };
+      }),
+
+      selectSingleTask: (id) =>
+        set(() => ({
+          selectedTaskIds: new Set([id]),
+          lastSelectedId: id,
+        })),
+
+      selectRange: (fromId, toId) =>
+        set((state) => {
+          if (!fromId) return { selectedTaskIds: new Set([toId]), lastSelectedId: toId };
+
+          const tasksInList = state.tasks.sort((a, b) => a.position - b.position);
+          const fromIndex = tasksInList.findIndex((t) => t.id === fromId);
+          const toIndex = tasksInList.findIndex((t) => t.id === toId);
+
+          if (fromIndex === -1 || toIndex === -1) return state;
+
+          const [start, end] = fromIndex < toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex];
+          const rangeIds = tasksInList.slice(start, end + 1).map((t) => t.id);
+
+          const selected = new Set(state.selectedTaskIds);
+          rangeIds.forEach((id) => selected.add(id));
+
+          return { selectedTaskIds: selected, lastSelectedId: toId };
+        }),
+
+        setLastSelected: (id) => set({ lastSelectedId: id }),
+
+        clearSelection: () => set({ selectedTaskIds: new Set(), lastSelectedId: null }),
+
+        selectAllTasks: () =>
+          set((state) => ({
+            selectedTaskIds: new Set(state.tasks.map((t) => t.id)),
+          })),
+
+    // clearSelection: () => set({ selectedTaskIds: new Set() }),
+    // selectAllTasks: () =>
+    //   set((state) => ({
+    //     selectedTaskIds: new Set(state.tasks.map((t) => t.id)),
+    //   })),
+
+
     updateTask: (taskId: string, updates: Partial<Task>) => {
       set((state) => ({
         tasks: state.tasks.map((t) =>
@@ -178,7 +251,13 @@ export const useBoardStore = create<BoardState>()(
       }));
     },
 
-
+    updateTasksBulk: (taskIds: string[], updates: Partial<Task>) => {
+      set((state) => ({
+        tasks: state.tasks.map((t) =>
+          taskIds.includes(t.id) ? { ...t, ...updates, updatedAt: new Date() } : t
+        ),
+      }));
+    },
 
     moveTask: async (taskId: string, newListId: string, newPosition: number) => {
       const prevTasks = get().tasks;
@@ -234,6 +313,39 @@ export const useBoardStore = create<BoardState>()(
       }
     },
 
+    moveTasks: (taskIds: string[], targetListId: string) =>
+      set((state) => {
+        if (taskIds.length === 0) return state;
+
+        // Get selected tasks
+        const selectedTasks = state.tasks.filter((t) => taskIds.includes(t.id));
+
+        // Ensure they are all from the same list
+        const sourceListId = selectedTasks[0]?.listId;
+        const sameList = selectedTasks.every((t) => t.listId === sourceListId);
+
+        if (!sameList) {
+          console.warn("Cannot move tasks from different lists together");
+          return state;
+        }
+
+        // Compute new positions (append to target list for now)
+        const targetTasks = state.tasks
+          .filter((t) => t.listId === targetListId)
+          .sort((a, b) => a.position - b.position);
+
+        let nextPosition = targetTasks.length > 0 ? targetTasks[targetTasks.length - 1].position + 1 : 0;
+
+        const updatedTasks = state.tasks.map((t) => {
+          if (taskIds.includes(t.id)) {
+            return { ...t, listId: targetListId, position: nextPosition++ };
+          }
+          return t;
+        });
+
+        return { tasks: updatedTasks };
+      }),
+
 
     moveList: async (listId: string, newPosition: number) => {
     const prevLists = get().lists; // Store old order for rollback
@@ -284,6 +396,31 @@ export const useBoardStore = create<BoardState>()(
         set({ tasks: prevTasks, isSaving: false });
       }
     },
+
+    deleteTasksBulk: async (taskIds: string[]) => {
+      const prevTasks = get().tasks;
+
+      // 🔹 Optimistic update
+      set((state) => ({
+        tasks: state.tasks.filter((t) => !taskIds.includes(t.id)),
+        selectedTaskIds: new Set(),
+      }));
+
+      try {
+        const res = await fetch("/api/tasks/bulk/delete", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ taskIds }),
+        });
+
+        if (!res.ok) throw new Error("Failed bulk delete");
+      } catch (error) {
+        console.error("Bulk delete failed, rolling back", error);
+        // 🔹 Rollback if server fails
+        set({ tasks: prevTasks });
+      }
+    },
+
 
     // ✅ FIXED: Explicit parameter types + typed .map
 moveTaskOptimistic: (taskId, newListId, newPosition) => {
@@ -372,3 +509,4 @@ moveTaskOptimistic: (taskId, newListId, newPosition) => {
     setDraggedOverList: (listId: string | null) => set({ draggedOverList: listId }),
   }))
 );
+

@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
 import { tasks, lists } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { auth } from "@clerk/nextjs/server";
+import { getUserProjectRole, hasPermission } from "@/lib/authz";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
@@ -20,15 +22,22 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   try {
-    // Delete all tasks in the list first
+    const { userId } = auth();
+    if (!userId) return new NextResponse("Unauthorized", { status: 401 });
+
+    // Find the list to know which project it belongs to
+    const list = await db.query.lists.findFirst({ where: eq(lists.id, params.id) });
+    if (!list) return new NextResponse("Not Found", { status: 404 });
+
+    const role = await getUserProjectRole(list.projectId, userId);
+    if (!hasPermission(role, "list.delete")) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+
     await db.delete(tasks).where(eq(tasks.listId, params.id));
-
-    // Then delete the list itself
     await db.delete(lists).where(eq(lists.id, params.id));
-
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[LIST_DELETE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

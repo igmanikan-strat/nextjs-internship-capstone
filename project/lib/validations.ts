@@ -25,7 +25,7 @@ export const taskSchema = z.object({
   description: z.string().max(1000, "Description too long").optional(),
   priority: z.enum(["low", "medium", "high"]),
   dueDate: z.string().datetime().optional(),
-  assigneeId: z.union([z.string().min(1), z.literal("")]).optional(),
+  assigneeId: z.string().optional(), // actually Clerk ID
   listId: z.string().uuid({ message: "List ID must be a valid UUID" }),
   projectId: z.string().uuid(),
   position: z.number(),

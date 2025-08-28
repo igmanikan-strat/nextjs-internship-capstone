@@ -1,4 +1,4 @@
-//lib/db/schema.ts
+// lib/db/schema.ts
 if (typeof window !== "undefined") {
   throw new Error("🚨 schema.ts imported in the browser!");
 }
@@ -10,112 +10,193 @@ import {
   text,
   timestamp,
   integer,
-  primaryKey,
-  foreignKey,
   index,
-} from 'drizzle-orm/pg-core';
+  pgEnum,
+  uniqueIndex,
+  json, 
+} from "drizzle-orm/pg-core";
+import { sql, relations } from "drizzle-orm";
 import { InferModel } from "drizzle-orm";
+
+// Define allowed roles
+export const userRoleEnum = pgEnum("user_role", ["admin", "manager", "member"]);
+
 // --- USERS ---
 export const users = pgTable("users", {
-  id: text("id").primaryKey(),
-  clerkId: text("clerk_id").notNull(),
+  id: uuid("id").defaultRandom().primaryKey(), // ✅ UUID as real PK
+  clerkId: text("clerk_id").notNull().unique(), // ✅ Clerk external ID
   email: varchar("email", { length: 256 }).notNull(),
   name: varchar("name", { length: 256 }).notNull(),
   username: varchar("username", { length: 256 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  role: userRoleEnum("role").notNull().default("member"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // --- PROJECTS ---
 export const projects = pgTable(
-  'projects',
+  "projects",
   {
-    id: uuid('id').defaultRandom().primaryKey(),
-    name: text('name').notNull(),
-    description: text('description'),
-    ownerId: text('owner_id')
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    ownerId: uuid("owner_id") // ✅ FIXED (uuid, not text)
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    dueDate: timestamp('due_date'),
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
+      .references(() => users.id, { onDelete: "cascade" }),
+    dueDate: timestamp("due_date"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
   },
   (project) => ({
-    ownerIdx: index('projects_owner_idx').on(project.ownerId),
+    ownerIdx: index("projects_owner_idx").on(project.ownerId),
   })
 );
 
 // --- LISTS ---
 export const lists = pgTable(
-  'lists',
+  "lists",
   {
-    id: uuid('id').defaultRandom().primaryKey(),
-    name: text('name').notNull(),
-    title: text("title").notNull(), // ✅ this line is important
-    projectId: uuid('project_id')
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    title: text("title").notNull(),
+    projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    position: integer('position').notNull(),
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
+      .references(() => projects.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
     description: text("description").notNull(),
   },
   (list) => ({
-    projectIdx: index('lists_project_idx').on(list.projectId),
+    projectIdx: index("lists_project_idx").on(list.projectId),
   })
 );
 
 // --- TASKS ---
 export const tasks = pgTable(
-  'tasks',
+  "tasks",
   {
-    id: uuid('id').defaultRandom().primaryKey(),
-    title: text('title').notNull(),
-    description: text('description'),
-    userId: text('user_id').notNull().references(() => users.id),
-    projectId: uuid('project_id')
+    id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    description: text("description"),
+    userId: uuid("user_id") // ✅ FIXED
       .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    listId: uuid('list_id')
+      .references(() => users.id),
+    projectId: uuid("project_id")
       .notNull()
-      .references(() => lists.id, { onDelete: 'cascade' }),
-    assigneeId: text('assignee_id').references(() => users.id),
-    priority: integer('priority').default(1), // 1 = low, 2 = medium, 3 = high
-    dueDate: timestamp('due_date'),
-    position: integer('position').notNull(),
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
+      .references(() => projects.id, { onDelete: "cascade" }),
+    listId: uuid("list_id")
+      .notNull()
+      .references(() => lists.id, { onDelete: "cascade" }),
+    assigneeId: uuid("assignee_id") // ✅ FIXED
+      .references(() => users.id),
+    priority: integer("priority").default(1),
+    dueDate: timestamp("due_date"),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
   },
   (task) => ({
-    listIdx: index('tasks_list_idx').on(task.listId),
-    assigneeIdx: index('tasks_assignee_idx').on(task.assigneeId),
+    listIdx: index("tasks_list_idx").on(task.listId),
+    assigneeIdx: index("tasks_assignee_idx").on(task.assigneeId),
   })
-  
 );
 
 // --- COMMENTS ---
 export const comments = pgTable(
-  'comments',
+  "comments",
   {
-    id: uuid('id').defaultRandom().primaryKey(),
-    content: text('content').notNull(),
-    taskId: uuid('task_id')
+    id: uuid("id").defaultRandom().primaryKey(),
+    content: text("content").notNull(),
+    taskId: uuid("task_id")
       .notNull()
-      .references(() => tasks.id, { onDelete: 'cascade' }),
-    authorId: text('author_id')
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id") // ✅ FIXED
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
   },
   (comment) => ({
-    taskIdx: index('comments_task_idx').on(comment.taskId),
-    authorIdx: index('comments_author_idx').on(comment.authorId),
+    taskIdx: index("comments_task_idx").on(comment.taskId),
+    authorIdx: index("comments_author_idx").on(comment.authorId),
   })
 );
 
-export type List = InferModel<typeof lists>; // ✅ this is for reading lists
-export type NewList = typeof lists.$inferInsert; // ✅ optional: for inserting new lists
+// --- PROJECT MEMBERS ---
+export const projectRole = pgEnum("project_role", ["admin", "manager", "member"]);
 
-export type Task = InferModel<typeof tasks>; // ✅ for reading tasks
-export type NewTask = typeof tasks.$inferInsert; // ✅ for inserting new tasks
+// --- PROJECT MEMBERS ---
+export const projectMembers = pgTable(
+  "project_members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")  // ✅ FK to users.id
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: projectRole("role").notNull().default("member"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (m) => ({
+    projectIdx: index("project_members_project_idx").on(m.projectId),
+    userIdx: index("project_members_user_idx").on(m.userId),
+    uniq: uniqueIndex("project_members_project_user_uniq").on(
+      m.projectId,
+      m.userId
+    ),
+  })
+);
+
+export const projectsRelations = relations(projects, ({ many }) => ({
+  members: many(projectMembers),
+}));
+
+export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
+  user: one(users, {
+    fields: [projectMembers.userId],
+    references: [users.id],
+  }),
+  project: one(projects, {
+    fields: [projectMembers.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const taskComments = pgTable("task_comments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const taskActivity = pgTable("task_activity", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "set null" }), // optional actor
+  action: text("action").notNull(), // e.g. "created", "status_changed", "comment_added"
+  metadata: json("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+
+// Types
+export type ProjectMember = InferModel<typeof projectMembers>;
+export type NewProjectMember = typeof projectMembers.$inferInsert;
+
+export type List = InferModel<typeof lists>;
+export type NewList = typeof lists.$inferInsert;
+
+export type Task = InferModel<typeof tasks>;
+export type NewTask = typeof tasks.$inferInsert;
