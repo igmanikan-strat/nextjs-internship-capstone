@@ -67,7 +67,13 @@
     updatedAt: Date
   }
 
-  
+  export interface ProjectMember {
+    id: string;                // membership row id (from projectMembers table)
+    userId: string;            // actual user id
+    username: string;          // from users table
+    role: "admin" | "manager" | "member";
+  }
+
 
   // types/index.ts
 

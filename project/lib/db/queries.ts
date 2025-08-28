@@ -1,5 +1,5 @@
 // lib/db/queries.ts
-import { eq } from "drizzle-orm";
+import { eq, and, or, asc, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import * as schema from "./schema";
 import { auth } from "@clerk/nextjs/server"; // ✅ Add this
@@ -11,23 +11,103 @@ import { z } from "zod"
 import { lists } from "./schema";
 import { taskUpdateSchema } from "@/lib/validations"; // import the new schema
 import { Task } from "@/types"
-import { asc } from "drizzle-orm"
-
+import { projectMembers } from "@/lib/db/schema";
+import { users as usersTable } from "./schema";
+import { users } from "./schema";
+// Fetch all projects for the logged-in user
+// Fetch all projects for the logged-in user
 export async function getAllProjects() {
-  const { userId } = auth(); // ✅ Get Clerk user
+  const { userId: clerkUserId } = auth();
+  if (!clerkUserId) return [];
 
-  if (!userId) return []; // Optional: handle unauthenticated
-
-  return await db.query.projects.findMany({
-    where: eq(schema.projects.ownerId, userId),
+  // Get DB user
+  const user = await db.query.users.findFirst({
+    where: eq(usersTable.clerkId, clerkUserId),
   });
+  if (!user) return [];
+
+  // ✅ Use user.id (UUID) here
+  const memberProjects = await db.query.projectMembers.findMany({
+    where: eq(projectMembers.userId, user.id),
+    columns: { projectId: true },
+  });
+  const memberProjectIds = memberProjects.map((p) => p.projectId);
+
+  // ✅ Use user.id (UUID) as ownerId
+  const projectsList = await db.query.projects.findMany({
+    where: (project, { eq, or, inArray }) => {
+      const conditions = [eq(project.ownerId, user.id)];
+      if (memberProjectIds.length > 0) conditions.push(inArray(project.id, memberProjectIds));
+      return or(...conditions);
+    },
+  });
+
+  // Deduplicate
+  const uniqueProjects = Array.from(new Map(projectsList.map((p) => [p.id, p])).values());
+
+  // Fetch members for each project
+  const projectsWithMembers = await Promise.all(
+    uniqueProjects.map(async (project) => {
+      const members = await db.query.projectMembers.findMany({
+        where: eq(projectMembers.projectId, project.id),
+      });
+      return { ...project, members };
+    })
+  );
+
+  return projectsWithMembers;
 }
 
+
+// Fetch a single project by ID for the logged-in user
 export async function getProjectById(id: string) {
-  return await db.query.projects.findFirst({
-    where: eq(schema.projects.id, id),
+  const { userId: clerkUserId } = auth();
+  if (!clerkUserId) throw new Error("Unauthorized");
+
+  // Get the user from DB using Clerk ID
+  const user = await db.query.users.findFirst({
+    where: eq(usersTable.clerkId, clerkUserId),
   });
+  if (!user) throw new Error("Unauthorized");
+
+  // ✅ Use user.id (UUID), not clerkUserId
+  const memberProjects = await db.query.projectMembers.findMany({
+    where: eq(projectMembers.userId, user.id),
+    columns: { projectId: true },
+  });
+  const memberProjectIds = memberProjects.map((p) => p.projectId);
+
+  const project = await db.query.projects.findFirst({
+    where: (project, { eq, and, inArray, or }) => {
+      const conditions = [
+        and(eq(project.id, id), eq(project.ownerId, user.id)), // owner
+      ];
+
+      if (memberProjectIds.length > 0) {
+        conditions.push(and(eq(project.id, id), inArray(project.id, memberProjectIds))); // member
+      }
+
+      if (user.role === "admin") {
+        conditions.push(eq(project.id, id)); // admin override
+      }
+
+      return or(...conditions);
+    },
+  });
+
+  if (!project) throw new Error("Project not found or forbidden");
+
+  const members = await db.query.projectMembers.findMany({
+    where: eq(projectMembers.projectId, project.id),
+  });
+
+  return { ...project, members };
 }
+
+
+
+
+
 
 export async function createProject(data: typeof schema.projects.$inferInsert) {
   return await db.insert(schema.projects).values(data).returning();
@@ -42,25 +122,57 @@ export async function deleteProject(id: string) {
 }
 
 export async function getTasksByProjectId(projectId: string): Promise<Task[]> {
-  const { userId } = auth()
-  if (!userId) throw new Error("Unauthorized")
+  const { userId } = auth();
+  if (!userId) throw new Error("Unauthorized");
 
+  // ✅ Ensure user has access
+  const project = await db.query.projects.findFirst({
+    where: (p, { eq, or }) =>
+      and(
+        eq(p.id, projectId),
+        or(
+          eq(p.ownerId, userId),
+          eq(schema.projectMembers.userId, userId)
+        )
+      ),
+  });
+
+  if (!project) throw new Error("Forbidden");
+
+  // ✅ Fetch tasks directly by projectId
   const rows = await db.query.tasks.findMany({
-    where: (task, { eq }) => eq(task.projectId, projectId),
-    orderBy: [asc(tasks.listId), asc(tasks.position)], // ✅ not a callback
-  })
+    where: (t, { eq }) => eq(t.projectId, projectId),
+    orderBy: (t, { asc }) => [asc(t.listId), asc(t.position)],
+    columns: {
+      id: true,
+      title: true,
+      description: true,
+      userId: true,
+      projectId: true,
+      listId: true,
+      assigneeId: true,
+      priority: true,
+      dueDate: true,
+      position: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
 
-  return rows.map(row => ({
+  return rows.map((row) => ({
     id: row.id,
     title: row.title,
     description: row.description ?? null,
     listId: row.listId,
     assigneeId: row.assigneeId ?? null,
     priority:
-      row.priority === 1 ? "low" :
-      row.priority === 2 ? "medium" :
-      row.priority === 3 ? "high" :
-      "low",
+      row.priority === 1
+        ? "low"
+        : row.priority === 2
+        ? "medium"
+        : row.priority === 3
+        ? "high"
+        : "low",
     dueDate: row.dueDate ?? null,
     position: row.position,
     createdAt: row.createdAt ?? new Date(),
@@ -69,8 +181,9 @@ export async function getTasksByProjectId(projectId: string): Promise<Task[]> {
     userId: row.userId,
     projectId: row.projectId,
   }));
-
 }
+
+
 
 export async function getTaskById(id: string) {
   const { userId } = auth()
@@ -82,8 +195,8 @@ export async function getTaskById(id: string) {
 }
 
 export async function createTask(input: z.infer<typeof taskSchema>) {
-  const { userId } = auth();
-  if (!userId) throw new Error("Unauthorized");
+  const { userId: clerkId } = auth();
+  if (!clerkId) throw new Error("Unauthorized"); // ensures not undefined
 
   const validated = taskSchema.parse(input);
 
@@ -93,13 +206,29 @@ export async function createTask(input: z.infer<typeof taskSchema>) {
     high: 3,
   } as const;
 
+  // Clerk ID is definitely a string here
+  const dbUser = await db.query.users.findFirst({
+    where: (u, { eq }) => eq(u.clerkId, clerkId!),
+  });
+  if (!dbUser) throw new Error("User not found in database");
+
+  // Resolve assignee if provided
+  let assigneeUuid: string | null = null;
+  if (validated.assigneeId && validated.assigneeId !== "") {
+    const dbAssignee = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.clerkId, validated.assigneeId!),
+    });
+    if (!dbAssignee) throw new Error("Assignee not found in database");
+    assigneeUuid = dbAssignee.id;
+  }
+
   return await db.insert(tasks).values({
     id: uuidv4(),
     title: validated.title,
     description: validated.description,
-    userId,
-    assigneeId: validated.assigneeId,
-    priority: priorityMap[validated.priority], // 💡 convert "low" → 1
+    userId: dbUser.id,
+    assigneeId: assigneeUuid,
+    priority: priorityMap[validated.priority],
     dueDate: validated.dueDate ? new Date(validated.dueDate) : null,
     listId: validated.listId,
     projectId: validated.projectId,
@@ -108,6 +237,8 @@ export async function createTask(input: z.infer<typeof taskSchema>) {
     updatedAt: new Date(),
   });
 }
+
+
 
 const priorityMap = {
   low: 1,
@@ -190,10 +321,39 @@ export async function getListsByProjectId(projectId: string) {
   const { userId } = auth();
   if (!userId) throw new Error("Unauthorized");
 
-  const data = await db.query.lists.findMany({
+  // ensure user has access to project
+  const project = await db.query.projects.findFirst({
+    where: (p, { eq, or }) =>
+      and(
+        eq(p.id, projectId),
+        or(
+          eq(p.ownerId, userId),
+          eq(schema.projectMembers.userId, userId)
+        )
+      ),
+  });
+
+  if (!project) throw new Error("Forbidden");
+
+  return await db.query.lists.findMany({
     where: (list, { eq }) => eq(list.projectId, projectId),
     orderBy: (list, { asc }) => [asc(list.createdAt)],
   });
+}
 
-  return data;
+
+// Get a user's role in a project
+export async function getUserProjectRole(projectId: string, userId: string) {
+  return await db.query.projectMembers.findFirst({
+    where: and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)),
+  });
+}
+
+// Add a member to a project (Admin-only)
+export async function addMemberToProject(projectId: string, userId: string, role: "member" | "manager") {
+  return await db.insert(projectMembers).values({
+    projectId,
+    userId,
+    role,
+  }).returning();
 }

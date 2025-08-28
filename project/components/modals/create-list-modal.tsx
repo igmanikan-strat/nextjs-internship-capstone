@@ -51,7 +51,8 @@ export function CreateListModal({ projectId }: Props) {
       <DialogContent className="bg-white dark:bg-neutral-900">
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <Input {...form.register("title")} placeholder="List title" />
-          <input type="hidden" value={projectId} {...form.register("projectId")} />
+          <input type="hidden" {...form.register("projectId")} defaultValue={projectId} />
+
           <Button type="submit" disabled={isPending}>
             Create
           </Button>

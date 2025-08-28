@@ -3,35 +3,30 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
 import { tasks } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { auth } from "@clerk/nextjs/server";
+import { getUserProjectRole, hasPermission } from "@/lib/authz";
 
 export async function PATCH(req: Request) {
   try {
-    const updates: { id: string; listId: string; position: number }[] = await req.json();
+    const { userId: clerkUserId } = auth();
+    if (!clerkUserId) return new NextResponse("Unauthorized", { status: 401 });
 
-    if (!updates || updates.length === 0) {
-      return new NextResponse("No updates provided", { status: 400 });
+    const updates: { id: string; listId: string; position: number; projectId: string }[] = await req.json();
+    if (!updates.length) return new NextResponse("No updates", { status: 400 });
+
+    const projectId = updates[0].projectId;
+    const role = await getUserProjectRole(projectId, clerkUserId);
+    if (!hasPermission(role, "task.reorder")) {
+      return new NextResponse("Forbidden", { status: 403 });
     }
 
     for (const t of updates) {
-      await db.update(tasks)
-        .set({
-          listId: t.listId,
-          position: t.position,
-          updatedAt: new Date(),
-        })
-        .where(eq(tasks.id, t.id));
+      await db.update(tasks).set({ listId: t.listId, position: t.position, updatedAt: new Date() }).where(eq(tasks.id, t.id));
     }
 
-    const listIds = [...new Set(updates.map(t => t.listId))];
-    const reorderedTasks = await db.query.tasks.findMany({
-      where: (task, { inArray }) => inArray(task.listId, listIds),
-      orderBy: (task, { asc }) => asc(task.position),
-    });
-
-    return NextResponse.json(reorderedTasks);
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[TASKS_REORDER]", error);
+    console.error("Task reorder error:", error);
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
-

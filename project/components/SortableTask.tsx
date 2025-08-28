@@ -7,18 +7,35 @@ import { Task } from '@/types'
 import { useBoardStore } from '@/stores/board-store'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { MoreVertical } from "lucide-react"
+// ⬇️ import your auth/store hook where user role is available
+import { useUserStore } from "@/stores/user-store"
 
 interface SortableTaskProps {
   task: Task
-  onClick?: () => void; // opens modal
+  onClick?: (e?: React.MouseEvent) => void
+  // selected?: boolean; // 👈 add this
 }
 
-export default function SortableTask({ task, onClick }: SortableTaskProps) {
+
+export default function SortableTask({ task, onClick}: SortableTaskProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: 'task' }
   })
   const { deleteTask } = useBoardStore()
+  const { role } = useUserStore() // assume you store "admin" | "manager" | "member"
+  const {
+    selectedTaskIds,
+    lastSelectedId,
+    toggleTaskSelection,
+    selectSingleTask,
+    selectRange,
+    setLastSelected,
+  } = useBoardStore();
+
+  const selected = selectedTaskIds.has(task.id); // 👈 derive directly from store
+  // ✅ permission
+  const canDeleteTask = ["admin", "manager"].includes(role?.toLowerCase() ?? "")
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -45,11 +62,41 @@ export default function SortableTask({ task, onClick }: SortableTaskProps) {
     <Card
       ref={setNodeRef}
       style={style}
-      onClick={onClick}
-      className="flex flex-col p-2 gap-1"
+      className={`flex flex-col p-2 gap-1 border-2 ${
+        selected ? "border-blue-500 bg-blue-50" : "border-transparent"
+      }`}
     >
       <div className="flex justify-between items-center">
-        <span {...attributes} {...listeners} className="flex-1 font-semibold cursor-grab">
+        {/* ✅ Checkbox for explicit selection */}
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+            e.stopPropagation();
+            const syntheticEvent = e.nativeEvent as MouseEvent;
+
+            if (syntheticEvent.shiftKey) {
+              selectRange(lastSelectedId, task.id);
+            } else if (syntheticEvent.ctrlKey || syntheticEvent.metaKey) {
+              toggleTaskSelection(task.id, !selected);
+            } else {
+              selectSingleTask(task.id);
+            }
+
+            setLastSelected(task.id);
+          }}
+          className="mr-2 cursor-pointer"
+        />
+
+
+
+
+        {/* ✅ Drag handle only */}
+        <span
+          {...attributes}
+          {...listeners}
+          className="flex-1 font-semibold cursor-grab select-none"
+        >
           {task.title}
         </span>
 
@@ -73,26 +120,38 @@ export default function SortableTask({ task, onClick }: SortableTaskProps) {
             >
               Edit
             </DropdownMenuItem>
-
-            <DropdownMenuItem
-              className="cursor-pointer bg-white hover:bg-red-100 focus:bg-red-100 text-red-500"
-              onClick={(e) => {
-                e.stopPropagation()
-                deleteTask(task.id)
-              }}
-            >
-              Delete
-            </DropdownMenuItem>
+            {canDeleteTask && (
+              <DropdownMenuItem
+                className="cursor-pointer bg-white hover:bg-red-100 focus:bg-red-100 text-red-500"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  deleteTask(task.id)
+                }}
+              >
+                Delete
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {task.description && (
-        <p className="text-sm text-gray-600">{task.description}</p>
-      )}
+      {/* ✅ Body click opens edit modal */}
+      <div
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick?.(e)
+        }}
+        className="cursor-pointer"
+      >
+        {task.description && (
+          <p className="text-sm text-gray-600">{task.description}</p>
+        )}
+      </div>
 
       <div className="flex justify-between items-center mt-1">
-        <span className={`text-xs px-2 py-0.5 rounded ${priorityColor[priorityString]}`}>
+        <span
+          className={`text-xs px-2 py-0.5 rounded ${priorityColor[priorityString]}`}
+        >
           {priorityString === "default"
             ? "No priority"
             : priorityString.charAt(0).toUpperCase() + priorityString.slice(1)}
