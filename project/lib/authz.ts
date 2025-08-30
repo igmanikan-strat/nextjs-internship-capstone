@@ -8,19 +8,22 @@ export type ProjectAction =
   | "project.delete"
   | "project.update"
   | "list.create"
+  | "list.update"
   | "list.delete"
   | "list.reorder"
   | "task.create"
   | "task.update"
   | "task.delete"
   | "task.reorder"
-  | "task.assign"; // changing assignee
+  | "task.assign";
 
+// ✅ single source of truth
 const ROLE_PERMS: Record<ProjectRole, ProjectAction[]> = {
   admin: [
     "project.delete",
     "project.update",
     "list.create",
+    "list.update",
     "list.delete",
     "list.reorder",
     "task.create",
@@ -31,6 +34,8 @@ const ROLE_PERMS: Record<ProjectRole, ProjectAction[]> = {
   ],
   manager: [
     "list.create",
+    "list.update",
+    "list.delete",  // ✅ managers can delete lists
     "list.reorder",
     "task.create",
     "task.update",
@@ -45,6 +50,7 @@ const ROLE_PERMS: Record<ProjectRole, ProjectAction[]> = {
   ],
 };
 
+// --- Role resolution ---
 export async function getUserProjectRole(
   projectId: string,
   clerkUserId: string
@@ -55,7 +61,7 @@ export async function getUserProjectRole(
   });
   if (!user) return null;
 
-  // Step 2: check if they're the project owner
+  // Step 2: check if they're the project owner → admin
   const proj = await db.query.projects.findFirst({
     where: eq(projects.id, projectId),
   });
@@ -69,45 +75,33 @@ export async function getUserProjectRole(
     ),
   });
 
-  return membership?.role ?? null;
+  return (membership?.role as ProjectRole) ?? null;
 }
 
-// export function hasPermission(role: ProjectRole | null, action: ProjectAction) {
-//   if (!role) return false;
-//   return ROLE_PERMS[role].includes(action);
-// }
+// --- Permission check ---
+export function hasPermission(role: ProjectRole | null, action: ProjectAction) {
+  if (!role) return false;
+  return ROLE_PERMS[role].includes(action);
+}
 
-/**
- * Additional “fine-grained” checks:
- * - Members can only update certain fields (title/description/priority/dueDate)
- * - Members cannot reassign tasks or delete tasks
- * - Optionally: restrict members to tasks they created or are assigned to (toggle via param)
- */
+// --- Fine-grained rules for members ---
 export function canMemberUpdateTaskFields(body: any) {
-  // Disallow changes to assigneeId, listId, position for members
-  const forbidden = ["assigneeId", "listId", "position", "userId", "projectId", "id", "createdAt", "updatedAt"];
+  // Disallow changes to sensitive fields for members
+  const forbidden = [
+    "assigneeId",
+    "listId",
+    "position",
+    "userId",
+    "projectId",
+    "id",
+    "createdAt",
+    "updatedAt",
+  ];
   return !forbidden.some((k) => k in body);
 }
 
-// optional: if you want members to edit only "their" tasks
 export async function isTaskOwnedOrAssignedToUser(taskId: string, userId: string) {
   const t = await db.query.tasks.findFirst({ where: eq(tasksTbl.id, taskId) });
   if (!t) return false;
   return t.userId === userId || t.assigneeId === userId;
 }
-
-export const permissions = {
-  admin: ["project.create", "list.create", "list.reorder", "task.create", "task.reorder", "member.add", "member.remove" ],
-  manager: ["list.create", "list.reorder", "task.create", "task.reorder"],
-  member: ["task.create", "task.reorder"],
-};
-
-export function hasPermission(role: string | null, action: string) {
-  if (!role) return false;
-  const perms = permissions[role as keyof typeof permissions] || [];
-  return perms.includes(action);
-}
-
-// export function hasPermission(role: "admin" | "manager" | "member", action: string) {
-//   return permissions[role]?.includes(action);  
-// }

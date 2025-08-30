@@ -1,7 +1,9 @@
+import { DashboardLayout } from "@/components/dashboard-layout"
 import { UserPlus, Mail, MoreHorizontal } from "lucide-react"
 
 export default function TeamPage() {
   return (
+    <DashboardLayout>
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
@@ -71,5 +73,6 @@ export default function TeamPage() {
         ))}
       </div>
     </div>
+    </DashboardLayout>
   )
 }

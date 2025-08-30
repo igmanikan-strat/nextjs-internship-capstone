@@ -47,7 +47,7 @@ export default function DashboardPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[ 
-            { name: "Active Projects", value: projects.length.toString(), icon: TrendingUp, change: "+2.5%" },
+            { name: "Active Projects", value: (projects.length/2).toString(), icon: TrendingUp, change: "+2.5%" },
             { name: "Team Members", value: "24", icon: Users, change: "+4.1%" },
             { name: "Completed Tasks", value: "156", icon: CheckCircle, change: "+12.3%" },
             { name: "Pending Tasks", value: "43", icon: Clock, change: "-2.1%" },

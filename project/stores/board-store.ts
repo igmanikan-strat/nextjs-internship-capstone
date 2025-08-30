@@ -39,6 +39,7 @@ interface BoardState {
   isLoading: boolean;
   isSaving: boolean;
   addList: (list: List) => void;
+  updateList: (listId: string, updates: Partial<List>) => void;
   loadProject: (projectId: string) => Promise<void>;
   createTask: (listId: string, task: Partial<Task>) => Promise<void>;
   updateTask: (taskId: string, updates: Partial<Task>) => void; // 🔹 change here
@@ -77,6 +78,29 @@ export const useBoardStore = create<BoardState>()(
     lastSelectedId: null,
 
     addList: (list: List) => set((state) => ({ lists: [...state.lists, list] })),
+    updateList: async (listId: string, updates: Partial<List>) => {
+      try {
+        const res = await fetch(`/api/lists/${listId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+
+        if (!res.ok) throw new Error("Failed to update list");
+
+        const updatedList = await res.json();
+
+        set((state) => ({
+          lists: state.lists.map((l) =>
+            l.id === listId ? { ...l, ...updatedList } : l
+          ),
+        }));
+      } catch (err) {
+        console.error("updateList error:", err);
+      }
+    },
+
+
     addTask: (task: Task) =>
     set((state) => ({
       tasks: [
@@ -149,6 +173,7 @@ export const useBoardStore = create<BoardState>()(
         title: task.title ?? "Untitled",
         description: task.description ?? "",
         priority: task.priority ?? "medium", // ✅ default if undefined
+        status: task.status ?? "ongoing",
         position: task.position ?? 0,
         comments: task.comments ?? [], // also ensure comments array exists
         createdAt: new Date(),

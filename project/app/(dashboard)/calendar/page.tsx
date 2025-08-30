@@ -7,7 +7,7 @@ import "react-big-calendar/lib/css/react-big-calendar.css"
 import { Plus } from "lucide-react"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react"
 import { Calendar as BigCalendar, momentLocalizer, Navigate } from "react-big-calendar"
-
+import { DashboardLayout } from "@/components/dashboard-layout"
 const localizer = momentLocalizer(moment)
 
 type Task = {
@@ -113,6 +113,7 @@ export default function CalendarPage() {
     .slice(0, 5)
 
   return (
+    <DashboardLayout>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -184,6 +185,7 @@ export default function CalendarPage() {
         </div>
       </div>
     </div>
+  </DashboardLayout>
   )
 }
  

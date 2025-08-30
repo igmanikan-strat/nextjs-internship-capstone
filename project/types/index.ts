@@ -32,6 +32,7 @@
   export interface List {
     id: string
     name: string
+    title: string
     projectId: string
     position: number
     createdAt: Date
@@ -56,6 +57,7 @@
     labels?: string[];        // ✅ optional tags
     projectId: string;   // added
     userId: string;      // added
+    status: "ongoing" | "completed";
   }
 
   export interface Comment {

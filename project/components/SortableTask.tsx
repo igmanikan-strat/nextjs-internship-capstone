@@ -6,24 +6,22 @@ import { Card } from '@/components/ui/card'
 import { Task } from '@/types'
 import { useBoardStore } from '@/stores/board-store'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { MoreVertical } from "lucide-react"
-// ⬇️ import your auth/store hook where user role is available
+import { MoreVertical, CheckCircle, Clock } from "lucide-react"
 import { useUserStore } from "@/stores/user-store"
-
+import { hasPermission, ProjectRole } from "@/lib/permissions";
 interface SortableTaskProps {
   task: Task
   onClick?: (e?: React.MouseEvent) => void
-  // selected?: boolean; // 👈 add this
+  role?: ProjectRole | null;
 }
 
-
-export default function SortableTask({ task, onClick}: SortableTaskProps) {
+export default function SortableTask({ task, onClick, role }: SortableTaskProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: 'task' }
   })
   const { deleteTask } = useBoardStore()
-  const { role } = useUserStore() // assume you store "admin" | "manager" | "member"
+  // const { role } = useUserStore()
   const {
     selectedTaskIds,
     lastSelectedId,
@@ -31,11 +29,10 @@ export default function SortableTask({ task, onClick}: SortableTaskProps) {
     selectSingleTask,
     selectRange,
     setLastSelected,
-  } = useBoardStore();
+  } = useBoardStore()
 
-  const selected = selectedTaskIds.has(task.id); // 👈 derive directly from store
-  // ✅ permission
-  const canDeleteTask = ["admin", "manager"].includes(role?.toLowerCase() ?? "")
+  const selected = selectedTaskIds.has(task.id)
+  const canDeleteTask = hasPermission(role ?? null, "task.delete");
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -58,6 +55,22 @@ export default function SortableTask({ task, onClick}: SortableTaskProps) {
   else if (task.priority === 2) priorityString = "medium"
   else if (task.priority === 3) priorityString = "high"
 
+  // ✅ status styles
+  const statusLabel =
+    task.status === "completed" ? "Completed" : "Ongoing"
+
+  const statusColor =
+    task.status === "completed"
+      ? "bg-blue-200 text-blue-800"
+      : "bg-purple-200 text-purple-800"
+
+  const statusIcon =
+    task.status === "completed" ? (
+      <CheckCircle className="w-3 h-3 mr-1 text-blue-700" />
+    ) : (
+      <Clock className="w-3 h-3 mr-1 text-purple-700" />
+    )
+
   return (
     <Card
       ref={setNodeRef}
@@ -67,7 +80,7 @@ export default function SortableTask({ task, onClick}: SortableTaskProps) {
       }`}
     >
       <div className="flex justify-between items-center">
-        {/* ✅ Checkbox for explicit selection */}
+        {/* ✅ Checkbox */}
         <input
           type="checkbox"
           checked={selected}
@@ -88,10 +101,7 @@ export default function SortableTask({ task, onClick}: SortableTaskProps) {
           className="mr-2 cursor-pointer"
         />
 
-
-
-
-        {/* ✅ Drag handle only */}
+        {/* ✅ Drag handle */}
         <span
           {...attributes}
           {...listeners}
@@ -135,7 +145,7 @@ export default function SortableTask({ task, onClick}: SortableTaskProps) {
         </DropdownMenu>
       </div>
 
-      {/* ✅ Body click opens edit modal */}
+      {/* Body */}
       <div
         onClick={(e) => {
           e.stopPropagation()
@@ -147,8 +157,14 @@ export default function SortableTask({ task, onClick}: SortableTaskProps) {
           <p className="text-sm text-gray-600">{task.description}</p>
         )}
       </div>
+      {task.assignee && (
+        <span className="text-xs text-gray-500">
+          Assigned to {task.assignee.name || task.assignee.email}
+        </span>
+      )}
 
-      <div className="flex justify-between items-center mt-1">
+      <div className="flex justify-between items-start mt-1">
+        {/* Left side: Priority badge */}
         <span
           className={`text-xs px-2 py-0.5 rounded ${priorityColor[priorityString]}`}
         >
@@ -157,12 +173,25 @@ export default function SortableTask({ task, onClick}: SortableTaskProps) {
             : priorityString.charAt(0).toUpperCase() + priorityString.slice(1)}
         </span>
 
-        {task.dueDate && (
-          <span className="text-xs text-gray-500">
-            Due: {new Date(task.dueDate).toLocaleDateString()}
+        {/* Right side: Status + Due Date stacked */}
+        <div className="flex flex-col items-end text-xs">
+          <span
+            className={`${
+              task.status === "completed"
+                ? "text-green-600 font-medium"
+                : "text-yellow-600 font-medium"
+            }`}
+          >
+            {task.status === "completed" ? "Completed" : "Ongoing"}
           </span>
-        )}
+          {task.dueDate && (
+            <span className="text-gray-500">
+              Due: {new Date(task.dueDate).toLocaleDateString()}
+            </span>
+          )}
+        </div>
       </div>
+
     </Card>
   )
 }

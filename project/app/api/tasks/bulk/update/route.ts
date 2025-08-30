@@ -9,6 +9,7 @@ const bulkUpdateSchema = z.object({
     title: z.string().optional(),
     description: z.string().optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
+    status: z.enum(["ongoing", "completed"]).optional(),
     assigneeId: z.string().uuid().optional(),
     listId: z.string().uuid().optional(),
   }),

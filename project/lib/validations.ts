@@ -29,6 +29,7 @@ export const taskSchema = z.object({
   listId: z.string().uuid({ message: "List ID must be a valid UUID" }),
   projectId: z.string().uuid(),
   position: z.number(),
+  status: z.enum(["ongoing", "completed"]).default("ongoing"),
 });
 
 // ✅ User Schema

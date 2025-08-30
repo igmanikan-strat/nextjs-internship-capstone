@@ -33,6 +33,8 @@ export function EditProjectModal({ onClose, project }: EditProjectModalProps) {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isSubmitting }
   } = useForm<EditProjectInput>({
     resolver: zodResolver(createProjectSchema),
@@ -40,9 +42,11 @@ export function EditProjectModal({ onClose, project }: EditProjectModalProps) {
       name: project?.name || '',
       description: project?.description || '',
       dueDate: project?.dueDate || '',
+      status: "ongoing",
     },
   })
 
+  
   useEffect(() => {
     setHasMounted(true)
   }, [])
@@ -106,6 +110,18 @@ export function EditProjectModal({ onClose, project }: EditProjectModalProps) {
             <Input type="date" {...register('dueDate')} />
           </div>
 
+          {/* Status toggle */}
+          <Button
+            type="button"
+            variant={watch("status") === "completed" ? "secondary" : "outline"}
+            onClick={() =>
+              setValue("status", watch("status") === "ongoing" ? "completed" : "ongoing")
+            }
+          >
+            {watch("status") === "ongoing" ? "Mark Completed ✅" : "Mark Ongoing 🔄"}
+          </Button>
+
+          {/* Save changes */}
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel

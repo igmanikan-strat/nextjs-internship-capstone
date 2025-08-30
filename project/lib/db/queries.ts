@@ -156,6 +156,7 @@ export async function getTasksByProjectId(projectId: string): Promise<Task[]> {
       position: true,
       createdAt: true,
       updatedAt: true,
+      status: true,
     },
   });
 
@@ -180,6 +181,7 @@ export async function getTasksByProjectId(projectId: string): Promise<Task[]> {
     comments: [],
     userId: row.userId,
     projectId: row.projectId,
+    status: row.status,
   }));
 }
 
@@ -263,6 +265,7 @@ export async function updateTask(id: string, input: z.infer<typeof taskUpdateSch
       ...validated,
       priority: validated.priority ? priorityMap[validated.priority] : undefined,
       dueDate: validated.dueDate ? new Date(validated.dueDate) : undefined,
+      status: validated.status ?? undefined,
       updatedAt: new Date(),
     })
     .where(eq(tasks.id, id));

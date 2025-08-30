@@ -35,6 +35,8 @@ export function useTasks(projectId: string) {
     queryKey: ["tasks", projectId],
     queryFn: () => fetchTasks(projectId),
     staleTime: 1000 * 60 * 5,
+    refetchInterval: 2000,   // ✅ poll every 2 seconds
+    refetchOnWindowFocus: true, // optional, refresh if user switches back to tab
   });
 
   useEffect(() => {
@@ -58,17 +60,44 @@ export function useTasks(projectId: string) {
   // 🔹 Update Task
   const updateTaskMutation = useMutation({
     mutationFn: async (task: Partial<Task> & { id: string }) => {
-      const { id, title, description, dueDate, priority } = task;
+      const { id, title, description, dueDate, priority, status, assigneeId } = task;
+      
+    const priorityMap: Record<number, "low" | "medium" | "high"> = {
+      1: "low",
+      2: "medium",
+      3: "high",
+    };
+
+      const payload: Record<string, any> = {
+        title,
+        description,
+        dueDate,
+        status,
+      };
+
+    if (priority !== undefined) {
+      payload.priority = typeof priority === "number"
+        ? priorityMap[priority]
+        : priority;
+    }
+
+    if (assigneeId !== undefined) {
+      payload.assigneeId = assigneeId;
+    }
+
+      // 🔍 Debug: see exactly what you're sending
+      console.log("[PATCH body]", payload);
 
       const res = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, dueDate, priority }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) throw new Error("Failed to update task");
       return res.json();
     },
+
     onMutate: (updates) => {
       updateTask(updates.id, updates);
     },
