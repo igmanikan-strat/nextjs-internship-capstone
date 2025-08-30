@@ -1,0 +1,1 @@
+ALTER TABLE "task_activity" ALTER COLUMN "user_id" SET DATA TYPE text;

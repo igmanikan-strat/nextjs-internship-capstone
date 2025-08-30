@@ -72,6 +72,9 @@ export const lists = pgTable(
   })
 );
 
+// --- TASK STATUS ENUM ---
+export const taskStatus = pgEnum("task_status", ["ongoing", "completed"]);
+
 // --- TASKS ---
 export const tasks = pgTable(
   "tasks",
@@ -93,6 +96,7 @@ export const tasks = pgTable(
     priority: integer("priority").default(1),
     dueDate: timestamp("due_date"),
     position: integer("position").notNull(),
+    status: taskStatus("status").notNull().default("ongoing"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -183,8 +187,7 @@ export const taskActivity = pgTable("task_activity", {
   taskId: uuid("task_id")
     .notNull()
     .references(() => tasks.id, { onDelete: "cascade" }),
-  userId: uuid("user_id")
-    .references(() => users.id, { onDelete: "set null" }), // optional actor
+  userId: text("user_id"),
   action: text("action").notNull(), // e.g. "created", "status_changed", "comment_added"
   metadata: json("metadata").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").defaultNow(),

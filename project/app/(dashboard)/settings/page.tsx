@@ -1,7 +1,9 @@
+import { DashboardLayout } from "@/components/dashboard-layout"
 import { User, Bell, Shield, Palette } from "lucide-react"
 
 export default function SettingsPage() {
   return (
+    <DashboardLayout>
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-outer_space-500 dark:text-platinum-500">Settings</h1>
@@ -97,5 +99,6 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+    </DashboardLayout>
   )
 }

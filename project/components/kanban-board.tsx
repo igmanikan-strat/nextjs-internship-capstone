@@ -173,12 +173,10 @@ export default function KanbanBoard({ projectId }: { projectId: string }) {
 
     // --- TASK REORDER ---
     if (activeType === 'task' && (overType === 'task' || overType === 'list')) {
-      const { tasks, lists, selectedTaskIds, moveTasks, moveTask } = useBoardStore.getState();
       const activeTaskObj = tasks.find(t => t.id === String(active.id));
       if (!activeTaskObj) return;
 
-      const oldListId = activeTaskObj.listId; // ✅ fix
-
+      const oldListId = activeTaskObj.listId;
       let targetListId: string;
       let overIndex: number;
 
@@ -201,41 +199,30 @@ export default function KanbanBoard({ projectId }: { projectId: string }) {
         overIndex = targetTasks.length;
       }
 
-      // --- batch move if multiple selected ---
-      const selectedIds = Array.from(selectedTaskIds);
-      const isMulti = selectedIds.includes(String(active.id)) && selectedIds.length > 1;
+      // Build new tasks array cleanly
+      let newTasks = tasks.map(t =>
+        t.id === activeTaskObj.id ? { ...t, listId: targetListId } : t
+      );
 
-      if (isMulti) {
-        moveTasks(selectedIds, targetListId);
-      } else {
-        moveTask(String(active.id), targetListId, overIndex);
-      }
-
-      // Rebuild new task state
-      const taskMap = new Map(tasks.map(t => [t.id, { ...t }]));
-      taskMap.delete(activeTaskObj.id);
-
-      const newActiveTask = { ...activeTaskObj, listId: targetListId };
-
-      const targetTasks = [...taskMap.values()]
+      // Reorder within the target list only
+      const targetTasks = newTasks
         .filter(t => t.listId === targetListId)
         .sort((a, b) => a.position - b.position);
 
-      targetTasks.splice(overIndex, 0, newActiveTask);
+      const oldIndex = targetTasks.findIndex(t => t.id === activeTaskObj.id);
+      const reordered = arrayMove(targetTasks, oldIndex, overIndex);
 
-      const oldTasks = [...taskMap.values()]
-        .filter(t => t.listId === oldListId) // ✅ fixed
-        .sort((a, b) => a.position - b.position);
+      // Normalize positions in that list
+      reordered.forEach((t, idx) => {
+        const i = newTasks.findIndex(x => x.id === t.id);
+        newTasks[i] = { ...t, position: idx };
+      });
 
-      // Normalize positions
-      oldTasks.forEach((t, idx) => taskMap.set(t.id, { ...t, position: idx }));
-      targetTasks.forEach((t, idx) => taskMap.set(t.id, { ...t, position: idx }));
-
-      const finalTasks = [...taskMap.values()];
+      // Send to API
       const projectId = lists.find(l => l.id === targetListId)?.projectId;
       if (!projectId) return;
 
-      const payload = finalTasks
+      const payload = newTasks
         .filter(t => !t.id.startsWith('temp-'))
         .map(t => ({ id: t.id, listId: t.listId, position: t.position, projectId }));
 
@@ -246,8 +233,7 @@ export default function KanbanBoard({ projectId }: { projectId: string }) {
           body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error('Failed to reorder tasks');
-
-        setTasks(finalTasks); // update state only on success
+        setTasks(newTasks); // ✅ no ghost duplicates
       } catch (err) {
         console.error('Task reorder error:', err);
       }
@@ -275,34 +261,37 @@ export default function KanbanBoard({ projectId }: { projectId: string }) {
         >
           <div className="flex gap-4 overflow-x-auto p-4">
             {lists.map(list => {
-  const listTasks = tasks
-    .filter(t => t.listId === list.id)
-    .sort((a, b) => a.position - b.position)
+              const listTasks = tasks
+                .filter(t => t.listId === list.id)
+                .sort((a, b) => a.position - b.position)
 
-  return (
-    <SortableList
-      key={list.id}
-      list={list}
-      onAddTask={() => handleAddTask(list.id)}
-    >
-      <SortableContext
-        items={listTasks.map(t => t.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        {listTasks.map(task => (
-          <SortableTask 
-            key={task.id} 
-            task={task} 
-            // selected={selectedTaskIds.includes(task.id)}
-            onClick={() => handleTaskClick(task)} 
-            />
-        ))}
-        
+              return (
+                <SortableList
+                  key={list.id}
+                  list={list}
+                  projectId={projectId}
+                  role={role}
+                  onAddTask={() => handleAddTask(list.id)}
+                >
+                  <SortableContext
+                    items={listTasks.map(t => t.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {listTasks.map(task => (
+                      <SortableTask 
+                        key={task.id} 
+                        task={task} 
+                        role={role}
+                        // selected={selectedTaskIds.includes(task.id)}
+                        onClick={() => handleTaskClick(task)} 
+                        />
+                    ))}
+                    
 
-      </SortableContext>
-    </SortableList>
-  )
-})}
+                  </SortableContext>
+                </SortableList>
+              )
+            })}
 
       <TaskDetailModal
           task={selectedTask}
@@ -310,17 +299,6 @@ export default function KanbanBoard({ projectId }: { projectId: string }) {
           onClose={() => setIsTaskModalOpen(false)}
           projectId={projectId}
         />
-            {/* Add List button
-            {canCreateList && (
-            <div className="flex-shrink-0 w-80 flex items-center justify-center">
-              <button
-                onClick={handleAddList}
-                className="w-full p-3 border-2 border-dashed rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors"
-              >
-                + Add List
-              </button>
-            </div>
-              )} */}
           </div>
         </SortableContext>
 

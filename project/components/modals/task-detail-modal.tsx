@@ -40,6 +40,7 @@ export function TaskDetailModal({ task, open, onClose, projectId }: TaskDetailMo
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [dueDate, setDueDate] = useState<Date | null>(null);
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
+  const [status, setStatus] = useState<"ongoing" | "completed">("ongoing");
 
   const { data: roleData } = useProjectRole(projectId);
   const role = roleData?.role;
@@ -57,14 +58,27 @@ export function TaskDetailModal({ task, open, onClose, projectId }: TaskDetailMo
     setTitle(task.title);
     setDescription(task.description || "");
     setAssigneeId(task.assigneeId || null);
+    setStatus(task.status ?? "ongoing");
 
     // Normalize priority
     if (typeof task.priority === "number") {
-      const priorityMap: Record<number, "low" | "medium" | "high"> = { 0: "low", 1: "medium", 2: "high" };
+      const priorityMap: Record<number, "low" | "medium" | "high"> = {
+        1: "low",
+        2: "medium",
+        3: "high",
+      };
       setPriority(priorityMap[task.priority] ?? "medium");
+    } else if (typeof task.priority === "string") {
+      const p = task.priority.toLowerCase();
+      if (p === "low" || p === "medium" || p === "high") {
+        setPriority(p);
+      } else {
+        setPriority("medium");
+      }
     } else {
-      setPriority(task.priority ?? "medium");
+      setPriority("medium");
     }
+
 
     setDueDate(task.dueDate ? new Date(task.dueDate) : null);
 
@@ -83,13 +97,21 @@ export function TaskDetailModal({ task, open, onClose, projectId }: TaskDetailMo
 
   const handleSave = async () => {
     if (!task) return;
+
+    const priorityToDb: Record<"low" | "medium" | "high", number> = {
+      low: 1,
+      medium: 2,
+      high: 3,
+    };
+
     try {
       await updateTask({
         id: task.id,
         title,
         description,
-        priority,
+        priority: priority ? priorityToDb[priority] : null,
         dueDate,
+        status,
         ...(role === "admin" || role === "manager" ? { assigneeId } : {}),
       });
       onClose();
@@ -140,10 +162,10 @@ export function TaskDetailModal({ task, open, onClose, projectId }: TaskDetailMo
             <label className="block text-sm mb-1">Priority</label>
             <Select
               value={priority}
-              onValueChange={(val) => setPriority(val as "low" | "medium" | "high")}
+              onValueChange={(val: "low" | "medium" | "high") => setPriority(val)}
             >
               <SelectTrigger className="bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700">
-                <SelectValue placeholder="Priority" />
+                <SelectValue placeholder="Select priority" />
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-neutral-900">
                 <SelectItem value="low">Low</SelectItem>
@@ -164,28 +186,41 @@ export function TaskDetailModal({ task, open, onClose, projectId }: TaskDetailMo
           </div>
 
           {/* Assignee */}
-          {(role === "admin" || role === "manager") && (
-            <div>
-              <label className="block text-sm mb-1">Assignee</label>
-              <Select
-                value={assigneeId ?? "unassigned"}
-                onValueChange={(val) => setAssigneeId(val === "unassigned" ? null : val)}
-              >
-                <SelectTrigger className="bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700">
-                  <SelectValue placeholder="Unassigned" />
-                </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-neutral-900">
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {members?.map((m) => (
-                    <SelectItem key={m.userId} value={m.userId}>
-                      {m.name || m.email} ({m.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div>
+            <label className="block text-sm mb-1">Assignee</label>
+            <Select
+              value={assigneeId ?? "unassigned"}
+              onValueChange={(val) => setAssigneeId(val === "unassigned" ? null : val)}
+            >
+              <SelectTrigger className="bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700">
+                <SelectValue placeholder="Unassigned" />
+              </SelectTrigger>
+              <SelectContent className="bg-white dark:bg-neutral-900">
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {members?.map((m) => (
+                  <SelectItem key={m.userId} value={m.userId}>
+                    {m.username} <span className="text-xs text-gray-500">({m.role})</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            </div>
-          )}
+          {/* mark completed or not */}
+<div className="flex items-center gap-2">
+  <input
+    type="checkbox"
+    id="status"
+    checked={status === "completed"}
+    onChange={(e) => setStatus(e.target.checked ? "completed" : "ongoing")}
+    className="w-4 h-4"
+  />
+  <label htmlFor="status" className="text-sm">
+    {status === "completed" ? "Task Completed" : "Mark as Done"}
+  </label>
+</div>
+
+
 
           <Button onClick={handleSave}>Save Changes</Button>
 

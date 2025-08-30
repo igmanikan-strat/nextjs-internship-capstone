@@ -65,6 +65,7 @@ export function CreateTaskModal() {
       projectId: "",
       listId: "",
       position: 0,
+      status: "ongoing",
     },
   })
 

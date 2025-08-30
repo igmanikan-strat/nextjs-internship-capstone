@@ -1,36 +1,42 @@
 'use client'
 
-import React, { ReactNode } from 'react'
+import React, { ReactNode, useState } from 'react'
 import { List, Task } from '@/types'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import SortableTask from './SortableTask'
 import { useSortable } from '@dnd-kit/sortable'
 import { useBoardStore } from '@/stores/board-store'
+import { useDeleteList } from "@/hooks/use-lists";
+import { hasPermission, ProjectRole } from "@/lib/permissions";
+import { EditListModal } from "@/components/modals/edit-list-modal";
 
 interface SortableListProps {
   list: List
-  // keep old API working
+  projectId: string
   tasks?: Task[]
   activeTaskId?: string
   onAddTask?: () => void
-  // new: allow children so the parent can inject its own SortableContext
   children?: ReactNode
+  role?: ProjectRole | null;
 }
 
 export default function SortableList({
   list,
+  projectId,
   tasks,
   activeTaskId,
   onAddTask,
   children,
+  role,
 }: SortableListProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: list.id,
     data: { type: 'list' },
   })
-  const { removeList } = useBoardStore()
 
+  const { mutate: deleteList } = useDeleteList(projectId);
+  const [editOpen, setEditOpen] = useState(false);
   // ensure DOM order matches positions when using the legacy `tasks` prop
   const orderedTasks = tasks ? [...tasks].sort((a, b) => a.position - b.position) : []
 
@@ -45,43 +51,48 @@ export default function SortableList({
       style={style}
       className="w-80 bg-gray-100 rounded p-2 flex-shrink-0"
     >
-      <div className="flex justify-between items-center mb-2 cursor-grab" {...attributes} {...listeners}>
-        <h3 className="font-bold">{(list as any).name ?? (list as any).title ?? 'Untitled'}</h3>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            removeList(list.id)
-          }}
-          aria-label="Delete list"
+      <div className="flex justify-between items-center mb-2">
+        <h3
+          className="font-bold cursor-grab"
+          {...attributes}
+          {...listeners}
         >
-          🗑
-        </button>
-      </div>
+          {list.name ?? list.title ?? "Untitled"}
+        </h3>
 
-      {/* If children are provided, render them directly (parent controls SortableContext).
-          Otherwise, keep backward compatibility by managing the tasks + SortableContext here. */}
-      {children ? (
-        <div className="flex flex-col gap-2 min-h-[100px]">
-          {children}
-          {onAddTask && (
+        <div className="flex gap-2">
+          {hasPermission(role ?? null, "list.update") && (
             <button
               onClick={(e) => {
-                e.stopPropagation()
-                onAddTask()
+                e.stopPropagation();
+                setEditOpen(true);
               }}
-              className="mt-2 w-full text-sm text-gray-600 hover:text-blue-500"
+              aria-label="Edit list"
             >
-              + Add Task
+              ✏️
+            </button>
+          )}
+          {hasPermission(role ?? null, "list.delete") && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteList(list.id);
+              }}
+              aria-label="Delete list"
+            >
+              🗑
             </button>
           )}
         </div>
+      </div>
+
+      {/* tasks or children */}
+      {children ? (
+        <div className="flex flex-col gap-2 min-h-[100px]">{children}</div>
       ) : (
-        <SortableContext
-          items={orderedTasks.map(t => t.id)}
-          strategy={verticalListSortingStrategy}
-        >
+        <SortableContext items={orderedTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col gap-2 min-h-[100px]">
-            {orderedTasks.map(task => (
+            {orderedTasks.map((task) => (
               <div key={task.id}>
                 {activeTaskId === task.id ? (
                   <div className="h-20 bg-transparent border-2 border-dashed rounded" />
@@ -90,21 +101,17 @@ export default function SortableList({
                 )}
               </div>
             ))}
-
-            {onAddTask && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onAddTask()
-                }}
-                className="mt-2 w-full text-sm text-gray-600 hover:text-blue-500"
-              >
-                + Add Task
-              </button>
-            )}
           </div>
         </SortableContext>
       )}
+
+      {/* ✅ modal */}
+      <EditListModal
+        projectId={projectId}
+        list={list}
+        open={editOpen}
+        setOpen={setEditOpen}
+      />
     </div>
-  )
+  );
 }
