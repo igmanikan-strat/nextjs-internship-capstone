@@ -23,15 +23,17 @@ export const userRoleEnum = pgEnum("user_role", ["admin", "manager", "member"]);
 
 // --- USERS ---
 export const users = pgTable("users", {
-  id: uuid("id").defaultRandom().primaryKey(), // ✅ UUID as real PK
-  clerkId: text("clerk_id").notNull().unique(), // ✅ Clerk external ID
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkId: text("clerk_id").notNull().unique(),
   email: varchar("email", { length: 256 }).notNull(),
-  name: varchar("name", { length: 256 }).notNull(),
+  firstName: varchar("first_name", { length: 128 }).notNull(),
+  lastName: varchar("last_name", { length: 128 }).notNull(),
   username: varchar("username", { length: 256 }).notNull(),
   role: userRoleEnum("role").notNull().default("member"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
 
 // --- PROJECTS ---
 export const projects = pgTable(

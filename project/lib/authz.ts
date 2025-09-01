@@ -5,6 +5,7 @@ import { projects, projectMembers, tasks as tasksTbl, users } from "@/lib/db/sch
 
 export type ProjectRole = "admin" | "manager" | "member";
 export type ProjectAction =
+  | "project.create"
   | "project.delete"
   | "project.update"
   | "list.create"
@@ -15,11 +16,13 @@ export type ProjectAction =
   | "task.update"
   | "task.delete"
   | "task.reorder"
-  | "task.assign";
+  | "task.assign"
+  | "member.remove"; // ← add these;
 
 // ✅ single source of truth
 const ROLE_PERMS: Record<ProjectRole, ProjectAction[]> = {
   admin: [
+    "project.create",
     "project.delete",
     "project.update",
     "list.create",
@@ -31,6 +34,7 @@ const ROLE_PERMS: Record<ProjectRole, ProjectAction[]> = {
     "task.delete",
     "task.reorder",
     "task.assign",
+    "member.remove",
   ],
   manager: [
     "list.create",

@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 export default function CustomSignUp() {
   const { isLoaded, signUp, setActive } = useSignUp();
   const router = useRouter();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -24,6 +26,8 @@ export default function CustomSignUp() {
       // Create Clerk account with username + password
       const result = await signUp.create({
         username,
+        firstName,
+        lastName,
         password,
       });
 
@@ -37,6 +41,8 @@ export default function CustomSignUp() {
           body: JSON.stringify({
             clerkId: result.createdUserId,
             username,
+            firstName,
+            lastName,
             role,
           }),
         });
@@ -81,6 +87,37 @@ export default function CustomSignUp() {
               required
             />
           </div>
+
+          {/* First Name */}
+          <div>
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-white">
+              First Name
+            </label>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-french_gray-400 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue_munsell-500 dark:bg-outer_space-400 dark:text-white"
+              placeholder="Enter your first name"
+              required
+            />
+          </div>
+
+          {/* Last Name */}
+          <div>
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-white">
+              Last Name
+            </label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-french_gray-400 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue_munsell-500 dark:bg-outer_space-400 dark:text-white"
+              placeholder="Enter your last name"
+              required
+            />
+          </div>
+
 
           {/* Password */}
           <div>

@@ -44,3 +44,25 @@ export function useRemoveMember(projectId: string) {
       qc.invalidateQueries({ queryKey: ["project-members", projectId] }),
   });
 }
+
+export function useUpdateMemberRole(projectId: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: "admin" | "manager" | "member" }) => {
+      const res = await fetch(`/api/projects/${projectId}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || "Failed to update member role");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-members", projectId] });
+    },
+  });
+}
