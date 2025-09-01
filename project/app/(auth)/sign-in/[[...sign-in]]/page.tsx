@@ -5,6 +5,7 @@
 import { useSignIn } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useUser } from "@clerk/nextjs"
 
 export default function CustomSignIn() {
   const { isLoaded, signIn, setActive } = useSignIn();

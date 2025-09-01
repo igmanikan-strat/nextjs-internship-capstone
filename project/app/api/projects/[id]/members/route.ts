@@ -14,16 +14,23 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   if (!role) return new NextResponse("Forbidden", { status: 403 });
 
   try {
-    const rows = await db
+    const rowsRaw = await db
       .select({
-        id: projectMembers.id,       // ✅ membership row id
+        id: projectMembers.id,
         userId: projectMembers.userId,
-        username: users.name,        // ✅ align with type
+        firstName: users.firstName,
+        lastName: users.lastName,
         role: projectMembers.role,
       })
       .from(projectMembers)
       .leftJoin(users, eq(users.id, projectMembers.userId))
       .where(eq(projectMembers.projectId, params.id));
+
+    const rows = rowsRaw.map(r => ({
+      ...r,
+      username: `${r.firstName} ${r.lastName}`,
+    }));
+
 
 
     return NextResponse.json(rows);
@@ -38,9 +45,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!clerkUserId) return new NextResponse("Unauthorized", { status: 401 });
 
   const role = await getUserProjectRole(params.id, clerkUserId);
-  if (!hasPermission(role, "member.add")) {
-    return new NextResponse("Forbidden", { status: 403 });
-  }
 
   const body = await req.json();
   if (!body.username) {

@@ -74,8 +74,12 @@
     userId: string;            // actual user id
     username: string;          // from users table
     role: "admin" | "manager" | "member";
+    projects: ProjectSummary[];
   }
-
+  export interface ProjectSummary {
+    id: string
+    name: string
+  }
 
   // types/index.ts
 

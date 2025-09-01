@@ -41,7 +41,7 @@ export default function HomePage() {
               {user ? (
                 <div className="flex items-center gap-4">
                   <span className="text-base font-medium text-outer_space-500 dark:text-platinum-500">
-                    Welcome, {user?.username || "User"}
+                    Welcome, {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : "User"}
                   </span>
                   <SignOutButton>
                     <button className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">

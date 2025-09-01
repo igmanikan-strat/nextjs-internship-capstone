@@ -12,25 +12,24 @@ export async function POST(req: Request) {
 
   if (eventType === "user.created") {
     const email = user.email_addresses?.[0]?.email_address ?? null;
-    const name =
-      [user.first_name, user.last_name].filter(Boolean).join(" ") || "Unnamed";
+    const firstName = user.first_name ?? "";
+    const lastName = user.last_name ?? "";
     const username = user.username ?? null;
-    const clerkId = user.id; // <- Clerk ID
+    const clerkId = user.id;
 
     if (clerkId) {
       try {
-        // 🔹 Query by clerkId, not id
         const existing = await db.query.users.findFirst({
           where: eq(users.clerkId, clerkId),
         });
 
         if (!existing) {
           await db.insert(users).values({
-            clerkId,       // 🔹 keep Clerk ID here
+            clerkId,
             email,
-            name,
+            firstName,
+            lastName,
             username,
-            // id will auto-generate UUID, don't touch it
           });
 
           console.log("✅ User added to database:", { email, username });
@@ -42,19 +41,26 @@ export async function POST(req: Request) {
       }
     }
   }
-  
+
   if (eventType === "user.updated") {
     const email = user.email_addresses?.[0]?.email_address ?? null;
-    const name =
-      [user.first_name, user.last_name].filter(Boolean).join(" ") || "Unnamed";
+    const firstName = user.first_name ?? "";
+    const lastName = user.last_name ?? "";
     const username = user.username ?? null;
     const clerkId = user.id;
 
     await db
       .update(users)
-      .set({ email, name, username, updatedAt: new Date() })
+      .set({
+        email,
+        firstName,
+        lastName,
+        username,
+        updatedAt: new Date(),
+      })
       .where(eq(users.clerkId, clerkId));
   }
+
 
   if (eventType === "user.deleted") {
     const clerkId = user.id;
