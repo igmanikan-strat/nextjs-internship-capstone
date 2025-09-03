@@ -13,7 +13,8 @@ import {
   index,
   pgEnum,
   uniqueIndex,
-  json, 
+  json,
+  boolean, 
 } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 import { InferModel } from "drizzle-orm";
@@ -186,15 +187,47 @@ export const taskComments = pgTable("task_comments", {
 
 export const taskActivity = pgTable("task_activity", {
   id: uuid("id").defaultRandom().primaryKey(),
-  taskId: uuid("task_id")
-    .notNull()
-    .references(() => tasks.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id").notNull(),
   userId: text("user_id"),
   action: text("action").notNull(), // e.g. "created", "status_changed", "comment_added"
   metadata: json("metadata").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// --- USER SETTINGS ---
+export const userSettings = pgTable("user_settings", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  notificationsEnabled: boolean("notifications_enabled").default(true).notNull(),
+});
+
+// --- NOTIFICATIONS ---
+export const notificationTypeEnum = ["project_created", "list_created", "task_created"] as const;
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    recipientId: uuid("recipient_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    actorId: uuid("actor_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    listId: uuid("list_id").references(() => lists.id, { onDelete: "cascade" }),
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // optionally, you can validate with zod or custom enum
+    message: text("message").notNull(),
+    read: boolean("read").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (notification) => ({
+    recipientIdx: index("notifications_recipient_idx").on(notification.recipientId),
+    actorIdx: index("notifications_actor_idx").on(notification.actorId),
+  })
+);
 
 // Types
 export type ProjectMember = InferModel<typeof projectMembers>;

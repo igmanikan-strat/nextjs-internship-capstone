@@ -75,9 +75,11 @@ export default function SortableTask({ task, onClick, role }: SortableTaskProps)
     <Card
       ref={setNodeRef}
       style={style}
-      className={`flex flex-col p-2 gap-1 border-2 ${
-        selected ? "border-blue-500 bg-blue-50" : "border-transparent"
-      }`}
+      className={`flex flex-col p-3 gap-1 rounded-lg 
+                bg-platinum-50 dark:bg-outer_space-600 
+                text-outer_space-700 dark:text-platinum-100 
+                border ${selected ? "border-blue-500 bg-blue-50 dark:bg-outer_space-500" : "border-transparent"} 
+                shadow-sm`}
     >
       <div className="flex justify-between items-center">
         {/* ✅ Checkbox */}
@@ -154,16 +156,16 @@ export default function SortableTask({ task, onClick, role }: SortableTaskProps)
         className="cursor-pointer"
       >
         {task.description && (
-          <p className="text-sm text-gray-600">{task.description}</p>
+          <p className="text-sm text-outer_space-500 dark:text-french_gray-400">{task.description}</p>
         )}
       </div>
       {task.assignee && (
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-outer_space-400 dark:text-french_gray-500">
           Assigned to {task.assignee.name || task.assignee.email}
         </span>
       )}
 
-      <div className="flex justify-between items-start mt-1">
+      <div className="flex justify-between items-start mt-1 text-xs">
         {/* Left side: Priority badge */}
         <span
           className={`text-xs px-2 py-0.5 rounded ${priorityColor[priorityString]}`}
@@ -178,14 +180,14 @@ export default function SortableTask({ task, onClick, role }: SortableTaskProps)
           <span
             className={`${
               task.status === "completed"
-                ? "text-green-600 font-medium"
-                : "text-yellow-600 font-medium"
+                ? "text-green-600 dark:text-green-400 font-medium"
+                : "text-yellow-600 dark:text-yellow-400 font-medium"
             }`}
           >
             {task.status === "completed" ? "Completed" : "Ongoing"}
           </span>
           {task.dueDate && (
-            <span className="text-gray-500">
+            <span className="text-outer_space-400 dark:text-french_gray-500">
               Due: {new Date(task.dueDate).toLocaleDateString()}
             </span>
           )}

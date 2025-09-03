@@ -82,8 +82,9 @@ export default function TeamPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-outer_space-500 dark:text-platinum-500">
-                      {userItem.name}
+                      {`${userItem.firstName ?? ""} ${userItem.lastName ?? ""}`.trim()}
                     </h3>
+
                     <p className="text-sm text-payne's_gray-500 dark:text-french_gray-400">
                       {userItem.role}
                     </p>
@@ -160,7 +161,7 @@ export default function TeamPage() {
   onClose={() => setProjectModalUser(null)}
   user={projectModalUser}
 />
-
+      
     </DashboardLayout>
   )
 }

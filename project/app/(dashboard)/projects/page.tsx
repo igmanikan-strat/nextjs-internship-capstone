@@ -97,7 +97,7 @@ export default function ProjectsPage() {
                   description: project.description,
                   dueDate: project.dueDate ? new Date(project.dueDate) : undefined,
                   progress: 0.6,
-                  memberCount: 5,
+                  memberCount: project.members?.length ?? 0,
                   status: 'active',
                 }}
                 onEdit={() =>

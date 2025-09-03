@@ -3,7 +3,7 @@ import { eq, and, or, asc, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import * as schema from "./schema";
 import { auth } from "@clerk/nextjs/server"; // ✅ Add this
-import { projects } from "./schema" // ✅ ADD THIS at the top
+import { projects, taskActivity } from "./schema" // ✅ ADD THIS at the top
 import { taskSchema } from "@/lib/validations"
 import { v4 as uuidv4 } from "uuid"
 import { tasks } from "./schema"
@@ -14,6 +14,7 @@ import { Task } from "@/types"
 import { projectMembers } from "@/lib/db/schema";
 import { users as usersTable } from "./schema";
 import { users } from "./schema";
+import { userSettings, notifications } from "./schema";
 // Fetch all projects for the logged-in user
 // Fetch all projects for the logged-in user
 export async function getAllProjects() {
@@ -198,7 +199,7 @@ export async function getTaskById(id: string) {
 
 export async function createTask(input: z.infer<typeof taskSchema>) {
   const { userId: clerkId } = auth();
-  if (!clerkId) throw new Error("Unauthorized"); // ensures not undefined
+  if (!clerkId) throw new Error("Unauthorized");
 
   const validated = taskSchema.parse(input);
 
@@ -208,13 +209,11 @@ export async function createTask(input: z.infer<typeof taskSchema>) {
     high: 3,
   } as const;
 
-  // Clerk ID is definitely a string here
   const dbUser = await db.query.users.findFirst({
     where: (u, { eq }) => eq(u.clerkId, clerkId!),
   });
   if (!dbUser) throw new Error("User not found in database");
 
-  // Resolve assignee if provided
   let assigneeUuid: string | null = null;
   if (validated.assigneeId && validated.assigneeId !== "") {
     const dbAssignee = await db.query.users.findFirst({
@@ -224,20 +223,26 @@ export async function createTask(input: z.infer<typeof taskSchema>) {
     assigneeUuid = dbAssignee.id;
   }
 
-  return await db.insert(tasks).values({
-    id: uuidv4(),
-    title: validated.title,
-    description: validated.description,
-    userId: dbUser.id,
-    assigneeId: assigneeUuid,
-    priority: priorityMap[validated.priority],
-    dueDate: validated.dueDate ? new Date(validated.dueDate) : null,
-    listId: validated.listId,
-    projectId: validated.projectId,
-    position: validated.position,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
+  // ✅ Use .returning() to get the inserted row
+  const [insertedTask] = await db
+    .insert(tasks)
+    .values({
+      id: uuidv4(),
+      title: validated.title,
+      description: validated.description,
+      userId: dbUser.id,
+      assigneeId: assigneeUuid,
+      priority: priorityMap[validated.priority],
+      dueDate: validated.dueDate ? new Date(validated.dueDate) : null,
+      listId: validated.listId,
+      projectId: validated.projectId,
+      position: validated.position,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning(); // <--- this is key
+
+  return insertedTask;
 }
 
 
@@ -272,10 +277,61 @@ export async function updateTask(id: string, input: z.infer<typeof taskUpdateSch
 }
 
 export async function deleteTask(id: string) {
-  const { userId } = auth()
-  if (!userId) throw new Error("Unauthorized")
+  const { userId } = auth();
+  if (!userId) throw new Error("Unauthorized");
 
-  return await db.delete(tasks).where(eq(tasks.id, id))
+  // 1️⃣ Fetch task before deleting (to log metadata)
+  const task = await db.query.tasks.findFirst({
+    where: eq(tasks.id, id),
+  });
+
+  if (!task) throw new Error("Task not found");
+
+  // 2️⃣ Delete task
+  await db.delete(tasks).where(eq(tasks.id, id));
+
+  // 3️⃣ Log deletion activity
+  await db.insert(taskActivity).values({
+    taskId: id,          // still reference deleted task
+    userId,
+    action: "task_deleted",
+    metadata: {
+      title: task.title,
+      listId: task.listId,
+      projectId: task.projectId,
+    },
+  });
+  console.log("Deleting task", id);
+
+  return true;
+}
+
+export async function deleteTasksBulk(taskIds: string[], userId: string) {
+  // 1️⃣ Fetch tasks before deletion
+  const existingTasks = await db.query.tasks.findMany({
+    where: inArray(tasks.id, taskIds),
+  });
+
+  if (existingTasks.length === 0) return [];
+
+  // 2️⃣ Delete them all at once
+  await db.delete(tasks).where(inArray(tasks.id, taskIds));
+
+  // 3️⃣ Log in one insert (no duplicates)
+  await db.insert(taskActivity).values(
+    existingTasks.map((t) => ({
+      taskId: t.id,
+      userId,
+      action: "task_deleted",
+      metadata: {
+        title: t.title,
+        listId: t.listId,
+        projectId: t.projectId,
+      },
+    }))
+  );
+
+  return existingTasks.map((t) => t.id);
 }
 
 export async function deleteList(listId: string) {
@@ -359,4 +415,89 @@ export async function addMemberToProject(projectId: string, userId: string, role
     userId,
     role,
   }).returning();
+}
+
+//notification
+export async function getRecipients(actorId?: string, includeActor = false) {
+  let recipients = await db.query.users.findMany({
+    columns: { id: true }, // fetch all users
+  });
+
+  if (!includeActor && actorId) {
+    recipients = recipients.filter((r) => r.id !== actorId);
+  }
+
+  console.log("[getRecipients] Recipients:", recipients.map((r) => r.id));
+  return recipients.map(r => ({ userId: r.id }));
+}
+
+
+
+export async function generateMessage(
+  type: "project_created" | "list_created" | "task_created",
+  actorId: string,
+  projectId?: string,
+  listId?: string,
+  taskId?: string
+) {
+  const actor = await db.query.users.findFirst({ where: eq(users.id, actorId) });
+  const actorName = actor ? `${actor.firstName} ${actor.lastName}` : "Someone";
+
+  switch (type) {
+    case "project_created":
+      return `${actorName} created a new project`;
+    case "list_created":
+      return `${actorName} created a new list`;
+    case "task_created":
+      return `${actorName} created a new task`;
+  }
+}
+
+
+export async function createNotification(
+  type: "project_created" | "list_created" | "task_created",
+  actorId: string,
+  projectId?: string,
+  listId?: string,
+  taskId?: string,
+  includeActor = false // whether the actor also receives the notification
+) {
+  console.log(`[createNotification] Called with type=${type}, actorId=${actorId}, projectId=${projectId}, listId=${listId}, taskId=${taskId}`);
+
+  // Fetch recipients
+  const recipients = await getRecipients(actorId, includeActor);
+
+  if (recipients.length === 0) {
+    console.log("[createNotification] No recipients found. Skipping notification creation.");
+    return;
+  }
+
+  // Generate message
+  const message = await generateMessage(type, actorId, projectId, listId, taskId);
+  console.log("[createNotification] Message:", message);
+
+  // Insert into DB
+  await db.insert(notifications).values(
+    recipients.map((r) => ({
+      recipientId: r.userId,
+      actorId,
+      projectId,
+      listId,
+      taskId,
+      type,
+      message,
+      read: false,
+      createdAt: new Date(),
+    }))
+  );
+
+  console.log("[createNotification] Notifications created for recipients:", recipients.map(r => r.userId));
+}
+
+
+export async function getNotificationsForUser(userId: string) {
+  return await db.query.notifications.findMany({
+    where: eq(notifications.recipientId, userId),
+    orderBy: (n, { desc }) => desc(n.createdAt)
+  });
 }

@@ -250,17 +250,20 @@ export function TaskDetailModal({ task, open, onClose, projectId }: TaskDetailMo
           {/* --- Activity Section --- */}
           <div className="mt-4">
             <h3 className="font-semibold mb-2">Activity History</h3>
-            <ul className="space-y-1 max-h-40 overflow-y-auto">
-              {activity.map((a) => (
-                <li key={a.id}>
-                  <strong>{a.username}</strong> {a.action}
-                  {a.metadata?.commentId && <> (comment #{a.metadata.commentId})</>}
-                  <em className="text-xs text-gray-400 ml-2">
-                    ({new Date(a.createdAt).toLocaleString()})
-                  </em>
-                </li>
-              ))}
-            </ul>
+              <ul className="space-y-1 max-h-40 overflow-y-auto">
+                {activity.map((a) => (
+                  <li key={a.id}>
+                    <strong>{a.username}</strong>{" "}
+                    {a.action === "task_created" && "created this task"}
+                    {a.action === "task_updated" && <>updated ({a.metadata?.changedFields?.join(", ")})</>}
+                    {a.action === "task_deleted" && "deleted this task"}
+                    {a.action === "comment_added" && <>commented (#{a.metadata.commentId})</>}
+                    <em className="text-xs text-gray-400 ml-2">
+                      ({new Date(a.createdAt).toLocaleString()})
+                    </em>
+                  </li>
+                ))}
+              </ul>
           </div>
         </div>
       </DialogContent>

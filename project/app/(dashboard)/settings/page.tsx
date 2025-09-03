@@ -1,6 +1,6 @@
 "use client";
 
-import { User, Shield, Palette } from "lucide-react";
+import { User, Shield, Palette, Bell } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -10,9 +10,10 @@ export default function SettingsPage() {
   const { user, isLoaded } = useUser();
   const clerk = useClerk();
 
-  const [selectedSection, setSelectedSection] = useState<"profile" | "security" | "appearance">("profile");
-  const [fullName, setFullName] = useState("");
+  const [selectedSection, setSelectedSection] = useState<"profile" | "security" | "appearance" | "notification">("profile");
+  const [fullName, setFullName] = useState(user?.fullName ?? "");
   const [saving, setSaving] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const [passwords, setPasswords] = useState<{
     old: string;
@@ -138,12 +139,20 @@ async function handleChangePassword(e: React.FormEvent) {
   }
 }
 
-
-
-
-
-
-
+useEffect(() => {
+  async function fetchSettings() {
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/notifications`);
+      if (!res.ok) throw new Error("Failed to fetch notifications settings");
+      const data = await res.json();
+      setNotificationsEnabled(data.notificationsEnabled);
+    } catch (err) {
+      console.error("Error fetching notification settings:", err);
+    }
+  }
+  fetchSettings();
+}, [user]);
 
 
   return (
@@ -165,7 +174,9 @@ async function handleChangePassword(e: React.FormEvent) {
               {[
                 { id: "profile", name: "Profile", icon: User },
                 { id: "security", name: "Security", icon: Shield },
+                { id: "notification", name: "Notification", icon: Bell },
                 { id: "appearance", name: "Appearance", icon: Palette },
+                
               ].map((item) => (
                 <button
                   key={item.id}
@@ -190,33 +201,34 @@ async function handleChangePassword(e: React.FormEvent) {
                 <h3 className="text-lg font-semibold mb-6">Profile Settings</h3>
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Full Name</label>
+                    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">Full Name</label>
                     <input
                       type="text"
                       value={fullName ?? ""}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-outer_space-400"
+                      className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-outer_space-400 text-gray-900 dark:text-white"
                     />
+
 
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-2">Username</label>
+                    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">Username</label>
                     <input
                       type="text"
-                      value={user?.username ?? ""}
+                      value={user?.username || ""}
                       disabled
-                      className="w-full px-3 py-2 border rounded-lg bg-gray-100 dark:bg-outer_space-400 cursor-not-allowed"
+                      className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-outer_space-400 text-gray-900 dark:text-white cursor-not-allowed"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-2">Role</label>
+                    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">Role</label>
                     <input
                       type="text"
                       value={String(user?.publicMetadata?.role ?? "Managed in Teams")}
                       disabled
-                      className="w-full px-3 py-2 border rounded-lg bg-gray-100 dark:bg-outer_space-400 cursor-not-allowed"
+                      className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-outer_space-400 text-gray-900 dark:text-white cursor-not-allowed"
                     />
                   </div>
 
@@ -238,33 +250,33 @@ async function handleChangePassword(e: React.FormEvent) {
                 <h3 className="text-lg font-semibold mb-6">Security</h3>
                   <form onSubmit={handleChangePassword} className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium mb-2">Current Password</label>
+                      <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">Current Password</label>
                       <input
                         type="password"
                         value={passwords.old}
                         onChange={(e) => setPasswords({ ...passwords, old: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-outer_space-400"
+                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-outer_space-400 text-gray-900 dark:text-white"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-2">New Password</label>
+                      <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">New Password</label>
                       <input
                         type="password"
                         value={passwords.new}
                         onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-outer_space-400"
+                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-outer_space-400 text-gray-900 dark:text-white"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">Confirm Password</label>
+                      <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">Confirm Password</label>
                       <input
                         type="password"
                         value={passwords.confirm}
                         onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-outer_space-400"
+                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-outer_space-400 text-gray-900 dark:text-white"
                         required
                       />
                     </div>
@@ -282,6 +294,37 @@ async function handleChangePassword(e: React.FormEvent) {
 
               </div>
             )}
+
+            {selectedSection === "notification" && (
+              <div className="bg-white dark:bg-outer_space-500 rounded-lg border p-6">
+                <h3 className="text-lg font-semibold mb-6">Notification Settings</h3>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="notifications"
+                    checked={notificationsEnabled}
+                    onChange={async (e) => {
+                      const value = e.target.checked;
+                      setNotificationsEnabled(value);
+                      try {
+                        await fetch("/api/notifications", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ notificationsEnabled: value }),
+                        });
+                      } catch (err) {
+                        console.error("Failed to update notification setting:", err);
+                      }
+                    }}
+                    className="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  />
+                  <label htmlFor="notifications" className="text-gray-700 dark:text-gray-200">
+                    Enable Notifications
+                  </label>
+                </div>
+              </div>
+            )}
+
 
             {selectedSection === "appearance" && (
               <div className="bg-white dark:bg-outer_space-500 rounded-lg border p-6">

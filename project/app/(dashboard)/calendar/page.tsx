@@ -8,6 +8,10 @@ import { Plus } from "lucide-react"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react"
 import { Calendar as BigCalendar, momentLocalizer, Navigate } from "react-big-calendar"
 import { DashboardLayout } from "@/components/dashboard-layout"
+import "react-big-calendar/lib/css/react-big-calendar.css"
+import "./calendar.css"
+
+
 const localizer = momentLocalizer(moment)
 
 type Task = {
@@ -135,7 +139,7 @@ export default function CalendarPage() {
             events={events}
             startAccessor="start"
             endAccessor="end"
-            style={{ height: "100%", background: "white" }}
+            style={{ height: "100%"}}
             views={["month", "agenda"]}
             popup
             // 🔑 control date + navigation
@@ -167,7 +171,9 @@ export default function CalendarPage() {
           {upcoming.map((event, index) => (
             <div
               key={index}
-              className="flex items-center justify-between p-3 bg-platinum-800 dark:bg-outer_space-400 rounded-lg"
+              className="flex items-center justify-between p-3 
+                        bg-platinum-100 dark:bg-outer_space-400 
+                        rounded-lg"
             >
               <div>
                 <div className="font-medium text-outer_space-500 dark:text-platinum-500">

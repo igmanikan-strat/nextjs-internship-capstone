@@ -1,6 +1,6 @@
 // app/api/tasks/[id]/route.ts
 import { NextResponse } from "next/server"
-import { getTaskById, deleteTask } from "@/lib/db/queries"
+import { getTaskById, deleteTask as deleteTaskQuery } from "@/lib/db/queries"
 import { taskUpdateSchema } from "@/lib/validations";
 import { updateTask } from "@/lib/db/queries";
 import { auth } from "@clerk/nextjs/server";
@@ -33,21 +33,16 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
       return new NextResponse("Forbidden", { status: 403 });
     }
 
-    await deleteTask(params.id);
-
-    // log activity
-    await db.insert(taskActivity).values({
-      taskId: params.id,
-      userId,
-      action: "task_deleted",
-      metadata: { title: t.title },
-    });
+    // ❌ don't log here, deleteTaskQuery already does it
+    await deleteTaskQuery(params.id);
 
     return new NextResponse("Deleted", { status: 200 });
-  } catch {
+  } catch (error) {
+    console.error("[TASK_DELETE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
+
 
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
