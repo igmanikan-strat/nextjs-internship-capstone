@@ -49,11 +49,14 @@ export default function SortableList({
     <div
       ref={setNodeRef}
       style={style}
-      className="w-80 bg-gray-100 rounded p-2 flex-shrink-0"
+        className="w-80 
+             bg-platinum-100 dark:bg-outer_space-700 
+             rounded-lg p-3 flex-shrink-0 
+             shadow-sm"
     >
       <div className="flex justify-between items-center mb-2">
         <h3
-          className="font-bold cursor-grab"
+          className="font-bold cursor-grab text-outer_space-700 dark:text-platinum-100"
           {...attributes}
           {...listeners}
         >
@@ -84,7 +87,9 @@ export default function SortableList({
             </button>
           )}
         </div>
+        
       </div>
+
 
       {/* tasks or children */}
       {children ? (
@@ -112,6 +117,19 @@ export default function SortableList({
         open={editOpen}
         setOpen={setEditOpen}
       />
+      {/* Add Task Button */}
+      {onAddTask && (
+        <button
+          onClick={onAddTask}
+          className="w-full py-1 mt-2 text-sm font-medium 
+                    text-outer_space-600 dark:text-platinum-200 
+                    bg-platinum-200 dark:bg-outer_space-600 
+                    rounded hover:bg-platinum-300 dark:hover:bg-outer_space-500"
+        >
+          + Add Task
+        </button>
+      )}
+
     </div>
   );
 }

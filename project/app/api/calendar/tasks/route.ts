@@ -28,6 +28,7 @@ export async function GET() {
         title: tasks.title,
         description: tasks.description,
         dueDate: tasks.dueDate,
+        status: tasks.status,
         projectName: projects.name,
         listName: lists.name,
       })

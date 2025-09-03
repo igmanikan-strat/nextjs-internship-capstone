@@ -1,6 +1,6 @@
 // hooks/use-projects.ts
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Project } from "@/types"
+import { NewProjectPayload, Project } from "@/types"
 
 type NewProject = Omit<Project, "id">
 
@@ -19,7 +19,7 @@ export function useCreateProject() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: NewProject) => {
+    mutationFn: async (data: NewProjectPayload) => {
       console.log("Sending project data:", data)
       const res = await fetch("/api/projects/create", {
         method: "POST",

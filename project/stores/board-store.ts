@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { arrayMove } from "@dnd-kit/sortable"; // ✅ Import added
 import type { Task, List, Project } from "@/types";
+import { id } from 'zod/v4/locales';
 
 // Define your types
 // export interface Task {
@@ -402,15 +403,15 @@ export const useBoardStore = create<BoardState>()(
   },
 
 
-    deleteTask: async (taskId: string) => {
+    deleteTask: async (id: string) => {
       set({ isSaving: true });
       const prevTasks = get().tasks;
       set((state) => ({
-        tasks: state.tasks.filter((t) => t.id !== taskId),
+        tasks: state.tasks.filter((t) => t.id !== id),
       }));
 
       try {
-        const res = await fetch(`/api/tasks/${taskId}`, {
+        const res = await fetch(`/api/tasks/${id}`, {
           method: "DELETE",
         });
 

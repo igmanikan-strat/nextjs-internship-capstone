@@ -1,11 +1,13 @@
+//app/(dashboard)/dashboard/layout
 "use client"
 
 import type React from "react"
 
-import { useState, Suspense } from "react"
+import { useState, Suspense, useRef, useEffect } from "react"
 import Link from "next/link"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Home, FolderOpen, Users, Settings, Menu, X, BarChart3, Calendar, Bell, Search } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home, current: true },
@@ -16,12 +18,36 @@ const navigation = [
   { name: "Settings", href: "/settings", icon: Settings, current: false },
 ]
 
+
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      const res = await fetch("/api/notifications");
+      if (!res.ok) throw new Error("Failed to fetch notifications");
+      return res.json();
+    },
+  });
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [dropdownRef]);
 
   return (
     <div className="min-h-screen bg-platinum-900 dark:bg-outer_space-600">
@@ -47,11 +73,6 @@ export default function DashboardLayout({
         </div>
 
         <nav className="mt-6 px-3">
-          <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-            <p className="text-xs text-yellow-800 dark:text-yellow-200">
-              📋 <strong>Task 2.6:</strong> Create protected dashboard layout
-            </p>
-          </div>
 
           <ul className="space-y-1">
             {navigation.map((item) => (
@@ -101,9 +122,44 @@ export default function DashboardLayout({
             </div>
 
             <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <button className="p-2 rounded-lg hover:bg-platinum-500 dark:hover:bg-payne's_gray-400">
-                <Bell size={20} />
-              </button>
+          <button
+            className="relative p-2 rounded-lg hover:bg-platinum-500 dark:hover:bg-payne's_gray-400"
+            onClick={() => setOpen((prev) => !prev)}
+          >
+            <Bell size={20} />
+            {notifications.length > 0 && (
+              <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                {notifications.length}
+              </span>
+            )}
+          </button>
+
+          {/* Notification dropdown */}
+          {open && (
+            <div
+              ref={dropdownRef}
+              className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-outer_space-500 shadow-lg rounded-lg border border-french_gray-300 dark:border-payne's_gray-400 z-50 max-h-[60vh] overflow-y-auto"
+            >
+              {notifications.length > 0 ? (
+                notifications.map((n: any) => (
+                  <div
+                    key={n.id}
+                    className="p-3 border-b last:border-b-0 hover:bg-platinum-100 dark:hover:bg-outer_space-400 cursor-pointer"
+                  >
+                    <p className="text-sm text-outer_space-500 dark:text-platinum-500">{n.message}</p>
+                    <p className="text-xs text-payne's_gray-500 dark:text-french_gray-400">
+                      {new Date(n.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="p-3 text-center text-payne's_gray-500 dark:text-french_gray-400">
+                  No notifications
+                </p>
+              )}
+            </div>
+          )}
+
 
               <ThemeToggle />
 

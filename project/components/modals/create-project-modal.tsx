@@ -51,7 +51,7 @@ export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalPro
       {
         ...data,
         ownerId: userId,
-        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
       },
       {
         onSuccess: () => {

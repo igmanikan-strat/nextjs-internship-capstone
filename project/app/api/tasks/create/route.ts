@@ -4,10 +4,11 @@ import { createTask } from "@/lib/db/queries";
 import { taskSchema } from "@/lib/validations";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db/client";
-import { users } from "@/lib/db/schema";
+import { users, taskActivity } from "@/lib/db/schema";
 import { hasPermission, getUserProjectRole } from "@/lib/authz";
 import { ZodError } from "zod";
 import { eq } from "drizzle-orm";
+import { createNotification } from "@/lib/db/queries";
 
 export async function POST(req: Request) {
   try {
@@ -26,6 +27,19 @@ export async function POST(req: Request) {
     }
 
     const task = await createTask(validated);
+
+    // Log activity
+    await db.insert(taskActivity).values({
+      taskId: task.id,
+      userId: dbUser.id, // make sure you use your DB user ID
+      action: "task_created",
+      metadata: { title: task.title },
+    });
+    try {
+      await createNotification("task_created", dbUser.id, validated.projectId, validated.listId, task.id);
+      } catch (err) {
+      console.error("Failed to send notification:", err);
+    }
     return NextResponse.json(task);
   } catch (error) {
     if (error instanceof ZodError) {

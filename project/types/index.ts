@@ -20,8 +20,15 @@
     updatedAt: Date
     dueDate?: Date
     lists: List[]
+    members?: User[]
   }
 
+  export interface NewProjectPayload {
+    name: string;
+    description?: string;
+    dueDate?: Date;
+    ownerId: string;
+  }
   export interface EditableProject {
     id: string
     name: string
@@ -79,6 +86,24 @@
   export interface ProjectSummary {
     id: string
     name: string
+  }
+
+  export interface Notification {
+    id: string;
+    recipientId: string;   // who receives it
+    actorId: string;       // who triggered the action
+    projectId?: string;
+    listId?: string;
+    taskId?: string;
+    type: 'project_created' | 'list_created' | 'task_created';
+    message: string;
+    read: boolean;
+    createdAt: Date;
+  }
+
+  export interface UserSettings {
+    userId: string;
+    notificationsEnabled: boolean;
   }
 
   // types/index.ts

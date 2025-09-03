@@ -7,11 +7,15 @@ import { projects, projectMembers, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { ZodError } from "zod";
 import { hasPermission } from "@/lib/authz";
+import { createNotification } from "@/lib/db/queries";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { userId: clerkUserId } = auth();
+
+    
+
     if (!clerkUserId) return new NextResponse("Unauthorized", { status: 401 });
 
     const dbUser = await db.query.users.findFirst({ where: eq(users.clerkId, clerkUserId) });
@@ -24,6 +28,7 @@ export async function POST(req: Request) {
     }
 
     const parsed = projectSchema.parse(body);
+
 
     const [proj] = await db.insert(projects).values({
       name: parsed.name,
@@ -38,6 +43,11 @@ export async function POST(req: Request) {
       role: "admin",
     }).onConflictDoNothing();
 
+    try {
+      await createNotification("project_created", dbUser.id, proj.id);
+    } catch (err) {
+      console.error("Failed to send notification:", err);
+    }
     return NextResponse.json({ success: true, project: proj });
 
   } catch (err: any) {

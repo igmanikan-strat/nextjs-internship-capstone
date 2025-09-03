@@ -36,7 +36,7 @@ export function EditListModal({ projectId, list, open, setOpen }: Props) {
       { id: list.id, title: values.title },
       {
         onSuccess: (updated) => {
-          updateListInStore(updated);
+          updateListInStore(updated.id, { title: updated.title });
           setOpen(false);
         },
       }
