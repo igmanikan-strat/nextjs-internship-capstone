@@ -1,19 +1,49 @@
-// hooks/use-lists.ts (client-safe)
+import { pusherClient } from "@/lib/pusher-client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { id } from "zod/v4/locales";
+import { useEffect } from "react";
+import { List } from "@/types";
 
 export function useLists(projectId: string) {
-  return useQuery({
+  const queryClient = useQueryClient();
+
+  const query = useQuery<List[]>({
     queryKey: ["lists", projectId],
     queryFn: async () => {
       const res = await fetch(`/api/lists/${projectId}`);
       if (!res.ok) throw new Error("Failed to fetch lists");
-      return res.json();
+      const data = (await res.json()) as List[];
+      return data.sort((a, b) => a.position - b.position);
     },
     enabled: !!projectId,
-    refetchInterval: 2000,          // ✅ poll every 2s
-    refetchOnWindowFocus: true,     // ✅ refresh on tab switch
   });
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    const channel = pusherClient.subscribe(`project-${projectId}`);
+
+    channel.bind("list:created", (list: List) => {
+      queryClient.setQueryData(["lists", projectId], (old: List[] | undefined) =>
+        [...(old || []), list].sort((a, b) => a.position - b.position)
+      );
+    });
+
+    channel.bind("lists:reordered", (newLists: List[]) => {
+      queryClient.setQueryData(["lists", projectId], newLists);
+    });
+
+    channel.bind("list:deleted", ({ id }: { id: string }) => {
+      queryClient.setQueryData(["lists", projectId], (old: List[] | undefined) =>
+        (old || []).filter((l) => l.id !== id)
+      );
+    });
+
+    return () => {
+      pusherClient.unsubscribe(`project-${projectId}`);
+    };
+  }, [projectId, queryClient]);
+
+  return query;
 }
 
 export function useCreateList(projectId: string) {
@@ -29,7 +59,7 @@ export function useCreateList(projectId: string) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lists", projectId] }); // ✅ sync instantly
+      queryClient.invalidateQueries({ queryKey: ["lists", projectId] });
     },
   });
 }

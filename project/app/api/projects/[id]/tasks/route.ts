@@ -87,7 +87,7 @@ export async function POST(
       action: "task_created",
       metadata: { title },
     });
-
+    
     return NextResponse.json(task);
   } catch (error) {
     console.error("[PROJECT_TASKS_POST]", error);

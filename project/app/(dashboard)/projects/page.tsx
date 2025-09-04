@@ -10,6 +10,8 @@ import { useProjects, useDeleteProject } from '@/hooks/use-projects'
 import { EditProjectModal } from '@/components/modals/edit-project-modal'
 import type { EditableProject } from '@/types'
 import { ProjectCard } from '@/components/project-card'
+import { useUser } from '@clerk/nextjs'
+import { useQuery } from '@tanstack/react-query'
 
 export default function ProjectsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -17,13 +19,27 @@ export default function ProjectsPage() {
   const [deleteMode, setDeleteMode] = useState(false)
   const [editProject, setEditProject] = useState<EditableProject | null>(null)
 
+  const { user } = useUser()
+
+  // fetch current user's role
+  const { data: currentUserRole } = useQuery({
+    queryKey: ['currentUserRole', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null
+      const res = await fetch(`/api/users/${user.id}/role`)
+      if (!res.ok) throw new Error('Failed to fetch role')
+      return res.json()
+    },
+    enabled: !!user?.id,
+  })
+
   const { data: projects = [], isLoading } = useProjects()
   const { mutate: deleteProject } = useDeleteProject()
 
-  // Deduplicate projects by ID in case API returns duplicates
+  // Deduplicate projects
   const uniqueProjects = Array.from(new Map(projects.map(p => [p.id, p])).values())
 
-  // Filter projects for search
+  // Search filter
   const filteredProjects = uniqueProjects.filter((project) =>
     project.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
@@ -39,18 +55,22 @@ export default function ProjectsPage() {
               Manage and organize your team projects
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => setIsModalOpen(true)} className="inline-flex items-center">
-              <Plus size={20} className="mr-2" />
-              New Project
-            </Button>
-            <Button
-              variant={deleteMode ? 'destructive' : 'outline'}
-              onClick={() => setDeleteMode(!deleteMode)}
-            >
-              {deleteMode ? 'Exit Delete Mode' : 'Delete Projects'}
-            </Button>
-          </div>
+
+          {/* Admin-only actions */}
+          {currentUserRole?.role === 'admin' && (
+            <div className="flex gap-2">
+              <Button onClick={() => setIsModalOpen(true)} className="inline-flex items-center">
+                <Plus size={20} className="mr-2" />
+                New Project
+              </Button>
+              <Button
+                variant={deleteMode ? 'destructive' : 'outline'}
+                onClick={() => setDeleteMode(!deleteMode)}
+              >
+                {deleteMode ? 'Exit Delete Mode' : 'Delete Projects'}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Modals */}
@@ -90,7 +110,7 @@ export default function ProjectsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProjects.map((project) => (
               <ProjectCard
-                key={project.id} // ✅ unique key
+                key={project.id}
                 project={{
                   id: project.id,
                   name: project.name,
@@ -100,20 +120,28 @@ export default function ProjectsPage() {
                   memberCount: project.members?.length ?? 0,
                   status: 'active',
                 }}
-                onEdit={() =>
-                  setEditProject({
-                    id: project.id,
-                    name: project.name,
-                    description: project.description ?? '',
-                    dueDate:
-                      project.dueDate instanceof Date
-                        ? project.dueDate.toISOString().split('T')[0]
-                        : typeof project.dueDate === 'string'
-                        ? new Date(project.dueDate).toISOString().split('T')[0]
-                        : undefined,
-                  })
+                // Only admins can edit/delete
+                onEdit={
+                  currentUserRole?.role === 'admin'
+                    ? () =>
+                        setEditProject({
+                          id: project.id,
+                          name: project.name,
+                          description: project.description ?? '',
+                          dueDate:
+                            project.dueDate instanceof Date
+                              ? project.dueDate.toISOString().split('T')[0]
+                              : typeof project.dueDate === 'string'
+                              ? new Date(project.dueDate).toISOString().split('T')[0]
+                              : undefined,
+                        })
+                    : undefined
                 }
-                onDelete={() => deleteProject(project.id)}
+                onDelete={
+                  currentUserRole?.role === 'admin'
+                    ? () => deleteProject(project.id)
+                    : undefined
+                }
               />
             ))}
           </div>

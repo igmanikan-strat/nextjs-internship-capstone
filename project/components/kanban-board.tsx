@@ -47,8 +47,7 @@ export default function KanbanBoard({ projectId }: { projectId: string }) {
 
   const sensors = useSensors(useSensor(PointerSensor))
   const [activeTask, setActiveTask] = useState<Task | null>(null)
-  const [activeTaskListId, setActiveTaskListId] = useState<string | null>(null)
-  
+
   const { selectedTaskIds, selectAllTasks, clearSelection } = useBoardStore();
   const {
     lastSelectedId,
@@ -247,11 +246,7 @@ export default function KanbanBoard({ projectId }: { projectId: string }) {
   return (
     <>
       <CreateListModal projectId={projectId} />
-      <CreateTaskModal
-        projectId={projectId}
-        listId={activeTaskListId} // store selected listId in state
-      />
-
+      <CreateTaskModal />
 
       <DndContext
         sensors={sensors}

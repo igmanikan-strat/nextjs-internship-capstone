@@ -12,11 +12,10 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
         action: taskActivity.action,
         metadata: taskActivity.metadata,
         createdAt: taskActivity.createdAt,
-        userId: taskActivity.userId, // Clerk userId (text)
-        username: users.username,    // optional, from users table
+        userId: taskActivity.userId,
+        username: users.username,
       })
       .from(taskActivity)
-      // 🔑 join on Clerk ID instead of UUID
       .leftJoin(users, eq(taskActivity.userId, users.clerkId))
       .where(eq(taskActivity.taskId, params.id))
       .orderBy(asc(taskActivity.createdAt));

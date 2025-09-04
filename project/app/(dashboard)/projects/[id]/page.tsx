@@ -1,3 +1,4 @@
+//app/(dashboard)/projects/[id]/page.tsx
 import { ArrowLeft, Settings, Users, Calendar, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";

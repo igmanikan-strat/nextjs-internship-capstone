@@ -9,6 +9,7 @@ import { tasks } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getUserProjectRole, hasPermission, canMemberUpdateTaskFields, isTaskOwnedOrAssignedToUser } from "@/lib/authz";
 import { taskActivity } from "@/lib/db/schema";
+import { pusherServer } from "@/lib/pusher";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
@@ -35,6 +36,14 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
 
     // ❌ don't log here, deleteTaskQuery already does it
     await deleteTaskQuery(params.id);
+
+    // ✅ Trigger Pusher event
+    await pusherServer.trigger(
+      `project-${t.projectId}`,
+      "task:deleted",
+      { id: params.id }
+    );
+
 
     return new NextResponse("Deleted", { status: 200 });
   } catch (error) {
@@ -86,6 +95,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         });
       }
     }
+
+    // ✅ Trigger Pusher event
+    await pusherServer.trigger(
+      `project-${existing.projectId}`,
+      "task:updated",
+      task
+    );
 
     return NextResponse.json(task);
   } catch (error) {

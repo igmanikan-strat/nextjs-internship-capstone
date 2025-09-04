@@ -12,6 +12,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
 
   const role = await getUserProjectRole(params.id, userId);
   if (!hasPermission(role, "project.delete")) {
+    
     return new NextResponse("Forbidden", { status: 403 });
   }
 

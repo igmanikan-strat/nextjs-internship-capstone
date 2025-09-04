@@ -7,6 +7,7 @@ import { createNotification } from "@/lib/db/queries";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { pusherServer } from "@/lib/pusher";
 
 export async function POST(req: Request) {
   try {
@@ -31,6 +32,11 @@ export async function POST(req: Request) {
     } catch (err) {
       console.error("Failed to send notification:", err);
     }
+
+    // after creating the list
+    await pusherServer.trigger(`project-${projectId}`, "list:created", list);
+
+
     return Response.json(list);
   } catch (error) {
     console.error("List creation failed:", error);
