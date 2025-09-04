@@ -5,7 +5,6 @@
 import { useSignIn } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useUser } from "@clerk/nextjs"
 
 export default function CustomSignIn() {
   const { isLoaded, signIn, setActive } = useSignIn();
@@ -37,6 +36,10 @@ export default function CustomSignIn() {
       setError(err.errors?.[0]?.message || "Sign-in failed.");
     }
   };
+  
+  if (signIn?.status === "complete") {
+    router.push("/dashboard");
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-platinum-900 to-outer_space-600 px-4">

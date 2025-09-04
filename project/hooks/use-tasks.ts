@@ -1,4 +1,5 @@
 // hooks/use-tasks.ts
+import { pusherClient } from "@/lib/pusher-client";
 import { useBoardStore } from "@/stores/board-store";
 import { Task } from "@/types";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -35,9 +36,37 @@ export function useTasks(projectId: string) {
     queryKey: ["tasks", projectId],
     queryFn: () => fetchTasks(projectId),
     staleTime: 1000 * 60 * 5,
-    refetchInterval: 2000,   // ✅ poll every 2 seconds
     refetchOnWindowFocus: true, // optional, refresh if user switches back to tab
   });
+
+  // 🔹 Subscribe to Pusher events
+  useEffect(() => {
+    if (!projectId) return;
+
+    const channel = pusherClient.subscribe(`project-${projectId}`);
+
+    channel.bind("task:created", (task: Task) => {
+      addTask(task);
+    });
+
+    channel.bind("task:updated", (task: Task) => {
+      updateTask(task.id, task);
+    });
+
+    channel.bind("task:deleted", ({ id }: { id: string }) => {
+      deleteTask(id);
+    });
+
+    channel.bind("task:reordered", (updates: { id: string; listId: string; position: number }[]) => {
+      updates.forEach((t) => {
+        moveTaskOptimistic(t.id, t.listId, t.position);
+      });
+    });
+
+    return () => {
+      pusherClient.unsubscribe(`project-${projectId}`);
+    };
+  }, [projectId, addTask, updateTask, deleteTask]);
 
   useEffect(() => {
     if (data) setTasks(data as Task[]);

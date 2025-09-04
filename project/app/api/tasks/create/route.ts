@@ -9,6 +9,7 @@ import { hasPermission, getUserProjectRole } from "@/lib/authz";
 import { ZodError } from "zod";
 import { eq } from "drizzle-orm";
 import { createNotification } from "@/lib/db/queries";
+import { pusherServer } from "@/lib/pusher";
 
 export async function POST(req: Request) {
   try {
@@ -35,11 +36,20 @@ export async function POST(req: Request) {
       action: "task_created",
       metadata: { title: task.title },
     });
+    
     try {
       await createNotification("task_created", dbUser.id, validated.projectId, validated.listId, task.id);
       } catch (err) {
       console.error("Failed to send notification:", err);
     }
+
+    // ✅ Trigger Pusher event
+    await pusherServer.trigger(
+      `project-${validated.projectId}`,
+      "task:created",
+      task
+    );
+
     return NextResponse.json(task);
   } catch (error) {
     if (error instanceof ZodError) {

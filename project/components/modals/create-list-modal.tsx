@@ -10,6 +10,7 @@ import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "../ui/dialog";
 import { useState } from "react";
 import { useBoardStore } from "@/stores/board-store";
+import { useProjectRole } from "@/hooks/use-project-role"; // ✅ import role hook
 
 type Props = {
   projectId: string;
@@ -19,6 +20,11 @@ export function CreateListModal({ projectId }: Props) {
   const [open, setOpen] = useState(false);
   const { mutate: createList, isPending } = useCreateList(projectId);
   const addList = useBoardStore((state) => state.addList);
+
+  // ✅ fetch role
+  const { data: roleData } = useProjectRole(projectId);
+  const role = roleData?.role; // "admin" | "manager" | "member" | null
+  const canCreateList = role === "admin" || role === "manager";
 
   const form = useForm<z.infer<typeof createListSchema>>({
     resolver: zodResolver(createListSchema),
@@ -43,6 +49,9 @@ export function CreateListModal({ projectId }: Props) {
     });
   };
 
+  // 🚫 if user is member, hide entire button
+  if (!canCreateList) return null;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -52,7 +61,6 @@ export function CreateListModal({ projectId }: Props) {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <Input {...form.register("title")} placeholder="List title" />
           <input type="hidden" {...form.register("projectId")} defaultValue={projectId} />
-
           <Button type="submit" disabled={isPending}>
             Create
           </Button>

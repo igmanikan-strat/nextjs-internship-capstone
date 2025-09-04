@@ -20,6 +20,7 @@ import {
   Sun,
 } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
+import { useUser } from "@clerk/nextjs"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -36,7 +37,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const { theme, setTheme } = useTheme()
   const pathname = usePathname() // get current path
-
+  const { user } = useUser()
+  const initials =
+    `${user?.firstName?.charAt(0) ?? user?.username?.charAt(0) ?? "U"}`
+      .toUpperCase()
   // Fetch notifications
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications"],
@@ -174,7 +178,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
             {/* User */}
             <div className="w-8 h-8 bg-blue_munsell-500 rounded-full flex items-center justify-center text-white font-semibold">
-              U
+              {initials}
             </div>
           </div>
         </div>

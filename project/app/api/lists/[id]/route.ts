@@ -5,6 +5,7 @@ import { tasks, lists } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 import { getUserProjectRole, hasPermission } from "@/lib/authz";
+import { pusherServer } from "@/lib/pusher";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
@@ -43,6 +44,11 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
 
     await db.delete(tasks).where(eq(tasks.listId, params.id));
     await db.delete(lists).where(eq(lists.id, params.id));
+
+    // after deleting
+    await pusherServer.trigger(`project-${list.projectId}`, "list:deleted", { id: list.id });
+
+
     return NextResponse.json({ success: true });
   } catch (error) {
     return new NextResponse("Internal Error", { status: 500 });
@@ -74,6 +80,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       })
       .where(eq(lists.id, params.id))
       .returning();
+
+    // after updating
+    await pusherServer.trigger(`project-${list.projectId}`, "list:updated", updated[0]);
+
 
     return NextResponse.json(updated[0]);
   } catch (error) {

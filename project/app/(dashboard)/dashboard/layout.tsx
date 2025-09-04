@@ -8,6 +8,7 @@ import Link from "next/link"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Home, FolderOpen, Users, Settings, Menu, X, BarChart3, Calendar, Bell, Search } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
+import { useUser } from "@clerk/nextjs"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home, current: true },
@@ -28,7 +29,11 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
+  const { user } = useUser()
+  const initials =
+    `${user?.firstName?.charAt(0) ?? user?.username?.charAt(0) ?? "U"}`
+      .toUpperCase()
+
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
@@ -98,6 +103,7 @@ export default function DashboardLayout({
       <div className="lg:pl-64">
         {/* Top bar */}
         <div className="sticky top-0 z-30 flex h-16 items-center gap-x-4 border-b border-french_gray-300 dark:border-payne's_gray-400 bg-white dark:bg-outer_space-500 px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+          {/* Mobile sidebar button (left) */}
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden p-2 rounded-lg hover:bg-platinum-500 dark:hover:bg-payne's_gray-400"
@@ -105,56 +111,61 @@ export default function DashboardLayout({
             <Menu size={20} />
           </button>
 
-          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
+          {/* Spacer to push right side */}
+          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6"></div>
 
-            <div className="flex items-center gap-x-4 lg:gap-x-6">
-          <button
-            className="relative p-2 rounded-lg hover:bg-platinum-500 dark:hover:bg-payne's_gray-400"
-            onClick={() => setOpen((prev) => !prev)}
-          >
-            <Bell size={20} />
-            {notifications.length > 0 && (
-              <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
-                {notifications.length}
-              </span>
-            )}
-          </button>
-
-          {/* Notification dropdown */}
-          {open && (
-            <div
-              ref={dropdownRef}
-              className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-outer_space-500 shadow-lg rounded-lg border border-french_gray-300 dark:border-payne's_gray-400 z-50 max-h-[60vh] overflow-y-auto"
+          {/* Right side controls */}
+          <div className="flex items-center gap-x-4 lg:gap-x-6">
+            {/* Notifications */}
+            <button
+              className="relative p-2 rounded-lg hover:bg-platinum-500 dark:hover:bg-payne's_gray-400"
+              onClick={() => setOpen((prev) => !prev)}
             >
-              {notifications.length > 0 ? (
-                notifications.map((n: any) => (
-                  <div
-                    key={n.id}
-                    className="p-3 border-b last:border-b-0 hover:bg-platinum-100 dark:hover:bg-outer_space-400 cursor-pointer"
-                  >
-                    <p className="text-sm text-outer_space-500 dark:text-platinum-500">{n.message}</p>
-                    <p className="text-xs text-payne's_gray-500 dark:text-french_gray-400">
-                      {new Date(n.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="p-3 text-center text-payne's_gray-500 dark:text-french_gray-400">
-                  No notifications
-                </p>
+              <Bell size={20} />
+              {notifications.length > 0 && (
+                <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                  {notifications.length}
+                </span>
               )}
-            </div>
-          )}
+            </button>
 
-
-              <ThemeToggle />
-
-              <div className="w-8 h-8 bg-blue_munsell-500 rounded-full flex items-center justify-center text-white font-semibold">
-                U
+            {/* Notification dropdown */}
+            {open && (
+              <div
+                ref={dropdownRef}
+                className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-outer_space-500 shadow-lg rounded-lg border border-french_gray-300 dark:border-payne's_gray-400 z-50 max-h-[60vh] overflow-y-auto"
+              >
+                {notifications.length > 0 ? (
+                  notifications.map((n: any) => (
+                    <div
+                      key={n.id}
+                      className="p-3 border-b last:border-b-0 hover:bg-platinum-100 dark:hover:bg-outer_space-400 cursor-pointer"
+                    >
+                      <p className="text-sm text-outer_space-500 dark:text-platinum-500">{n.message}</p>
+                      <p className="text-xs text-payne's_gray-500 dark:text-french_gray-400">
+                        {new Date(n.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="p-3 text-center text-payne's_gray-500 dark:text-french_gray-400">
+                    No notifications
+                  </p>
+                )}
               </div>
-            </div>
+            )}
+
+            {/* Theme toggle */}
+            <ThemeToggle />
+
+            {/* User avatar */}
+    <div className="w-8 h-8 bg-blue_munsell-500 rounded-full flex items-center justify-center text-white font-semibold">
+      {initials}
+    </div>
+
           </div>
         </div>
+
 
         {/* Page content */}
         <main className="py-8 px-4 sm:px-6 lg:px-8">
